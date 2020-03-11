@@ -1,5 +1,6 @@
 C.................... RSJACA.FOR;3 ..........12-MAR-1993 09:02:35.48 
-      SUBROUTINE BDSLV(N,M,S,KS,B,X,WORK,NFLAG)
+      SUBROUTINE BDSLV(N,M,S,KS,B,X,WORK,NFLAG,
+     >                mp,lp,i_which_call)          
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
       DOUBLE PRECISION MUL(50000)
       DIMENSION S(N,1),WORK(N,1),SCALE(N),INDEX(N),B(N),
@@ -8,27 +9,39 @@ C.................... RSJACA.FOR;3 ..........12-MAR-1993 09:02:35.48
       IW=2*M+1
       M1=M+1
 C
-      CALL BNDX(N,M,S,KS,B,X,WORK,SCALE,INDEX,MUL,NFLAG,IW,M1)
+      CALL BNDX(N,M,S,KS,B,X,WORK,SCALE,INDEX,MUL,NFLAG,IW,M1,
+     >                mp,lp,i_which_call)          
       RETURN
       END
 C:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-      SUBROUTINE BNDX(N,M,A,KS,B,X,S,SCALE,INDEX,MUL,NFLAG,IW,M1)
-      USE module_IO,ONLY: PRUNIT
-      USE module_input_parameters,ONLY:sw_ERSTOP_flip,mype
+      SUBROUTINE BNDX(N,M,A,KS,B,X,S,SCALE,INDEX,MUL,NFLAG,IW,M1,
+     >                mp,lp,i_which_call)          
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
       DOUBLE PRECISION MUL(M1,N)
       DIMENSION A(N,IW),B(N),X(N),SCALE(N),INDEX(N),S(N,IW)
+      character*4 which_call_str
       KDIM=0
 103   IF(KS.NE.0) GO TO 126
       IBW=2*M+1
 C ...... modification here by PR Aug 91
       IF(M.GT.N-1) THEN
-!dbg20120306         WRITE(6,918)
-!sms$ignore begin
-         WRITE(PRUNIT,918) mype
-!sms$ignore end
-918      FORMAT('    IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE',i10)
-         NFLAG=3
+         SELECT CASE (i_which_call)
+           CASE (1)
+           which_call_str = 'He+ '
+           NFLAG=100
+           CASE (2)
+           which_call_str = 'N+  '
+           NFLAG=101
+           CASE (3)
+           which_call_str = 'Dens'
+           NFLAG=102
+           CASE (4)
+           which_call_str = 'Temp'
+           NFLAG=103
+         END SELECT
+!        WRITE(*,918) 1,mp,lp,which_call_str
+918      FORMAT('    IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE',3i10,a8)
+!        NFLAG=3
          RETURN
       ENDIF
 C
@@ -59,15 +72,25 @@ C
 110   BIG=ABS(S(I,J))
 111   CONTINUE
       IF(BIG) 114,112,114
-!dbg20120306  112 WRITE(6,919)I
-!sms$ignore begin
-  112 WRITE(PRUNIT,919)I,mype
-!sms$ignore end
-919   FORMAT('    IN BDSLV, ROW',I6,' IS ZERO IN INPUT MATRIX',i10)
-      NFLAG=2
-!dbg20140610: code must stop if this error happens!
-!nm20170111: commented out to get WAM-IPE keep going at the initial trial stage by loosening error stop.
-!      sw_ERSTOP_flip=1
+  112 SELECT CASE (i_which_call)
+        CASE (1)
+        which_call_str = 'He+ '
+        NFLAG=201
+        CASE (2)
+        which_call_str = 'N+  '
+        NFLAG=202
+        CASE (3)
+        which_call_str = 'Dens'
+        NFLAG=203
+        CASE (4)
+        which_call_str = 'Temp'
+        NFLAG=204
+      END SELECT
+
+!     WRITE(*,919)I,1,mp,lp,which_call_str
+919   FORMAT('    IN BDSLV, ROW',I6,' IS ZERO IN INPUT MATRIX1=',
+     >       3i6,a8)
+!     NFLAG=2
       RETURN
 114   SCALE(I)=1./BIG
 115   CONTINUE
@@ -110,10 +133,23 @@ C
 C
       IF(S(N,1)) 126,118,126
 C  ..... PR mod in Aug 91
-!dbg20120306: 118   WRITE(6,917)
-118   WRITE(PRUNIT,917) mype
-917   FORMAT('  IN BDSLV &&&&&&&&   ZERO PIVOT ELEMENT',i10)
-      NFLAG=1
+118   SELECT CASE (i_which_call)
+        CASE (1)
+        which_call_str = 'He+ '
+        NFLAG=301
+        CASE (2)
+        which_call_str = 'N+  '
+        NFLAG=302
+        CASE (3)
+        which_call_str = 'Dens'
+        NFLAG=303
+        CASE (4)
+        which_call_str = 'Temp'
+        NFLAG=304
+      END SELECT
+!     WRITE(*,917) 1 , mp,lp,which_call_str
+917   FORMAT('  IN BDSLV &&&&&&&&   ZERO PIVOT ELEMENT',3i10,a8)
+!     NFLAG=1
       RETURN
 C
 126   DO 127 I=1,N
@@ -146,7 +182,24 @@ C
 131   CONTINUE
       X(I)=(X(I)-SUM)/S(I,1)
 132   CONTINUE
-      IF(KDIM.GT.50000) WRITE(6,90) KDIM
- 90   FORMAT(' WARNING!! DIMENSION OF MUL IN BDSLV TOO SMALL. KDIM=',I9)
+      IF(KDIM.GT.50000) THEN
+      SELECT CASE (i_which_call)
+        CASE (1)
+        which_call_str = 'He+ '
+        NFLAG=401
+        CASE (2)
+        which_call_str = 'N+  '
+        NFLAG=402
+        CASE (3)
+        which_call_str = 'Dens'
+        NFLAG=403
+        CASE (4)
+        which_call_str = 'Temp'
+        NFLAG=404
+      END SELECT
+!     WRITE(6,90) KDIM,which_call_str
+ 90   FORMAT(' WARNING!! DIMENSION OF MUL IN BDSLV TOO SMALL. KDIM=',
+     >       I9,a8)
+      ENDIF
       RETURN
       END

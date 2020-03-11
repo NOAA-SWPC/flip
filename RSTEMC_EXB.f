@@ -14,9 +14,10 @@ C....  by P. Richards, July 2011
      >                N,    !.. O+, H+, He+, minor ion densities array
      >               TI,    !.. Ion and electron temperatures
      >                F,    !.. OUTPUT: The integrated continuity equation
-     >            TISAV)    !.. temperatures at previous time step
+     >            TISAV,mp,lp)    !.. temperatures at previous time step
       USE FIELD_LINE_GRID !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       IMPLICIT NONE
+      INTEGER mp,lp
       INTEGER J,ILJ,ID
       DOUBLE PRECISION DT,N(4,FLDIM),TI(3,FLDIM),F(20),TISAV(3,FLDIM)
       ID=3                         !..unit for diagnostics in North
@@ -24,7 +25,7 @@ C....  by P. Richards, July 2011
 
       !.... set up the ion and electron energy equations
       CALL GET_ION_TEMP(J,ILJ,ID,DT,N,TI,TISAV,F)
-      CALL GET_ELECTRON_TEMP(J,ILJ,ID,DT,N,TI,TISAV,F)
+      CALL GET_ELECTRON_TEMP(J,ILJ,ID,DT,N,TI,TISAV,F,mp,lp)
       RETURN
       END
 C:::::::::::::::::::::::::: GET_ION_TEMP ::::::::::::::::::::::::::
@@ -45,7 +46,6 @@ C.. loss processes for ions. It calls TERLIN to do the interpolation
       !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
       USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc.
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
-      USE module_input_parameters,ONLY: sw_divv
       IMPLICIT NONE
       INTEGER J,ILJ,ID,I,K
       DOUBLE PRECISION DT,N(4,FLDIM),TI(3,FLDIM),TISAV(3,FLDIM),F(20)
@@ -121,19 +121,17 @@ C.. loss processes for ions. It calls TERLIN to do the interpolation
       !.. bounds of the integral.
       !.. 2nd last term on RHS in Bailey, PSS 1983 equation 15
       !.. The O+ and H+ contributions are treated separately in each term.
-      IF ( sw_divv==1 ) THEN
-      DIVV_UP=BOLTZ*0.5*(XIONN(1,J+1)*TI(2,J+1)+XIONN(1,J)*TI(2,J))*
-     >     (IVEL(1,3)-IVEL(1,2))/B_UP
-     >   +BOLTZ*0.5*(XIONN(2,J+1)*TI(2,J+1)+XIONN(2,J)*TI(2,J))*
-     >     (IVEL(2,3)-IVEL(2,2))/B_UP
-      DIVV_LO=BOLTZ*0.5*(XIONN(1,J)*TI(2,J)+XIONN(1,J-1)*TI(2,J-1))*
-     >     (IVEL(1,2)-IVEL(1,1))/B_UP
-     >   +BOLTZ*0.5*(XIONN(2,J)*TI(2,J)+XIONN(2,J-1)*TI(2,J-1))*
-     >     (IVEL(2,2)-IVEL(2,1))/B_UP
-      ELSE IF ( sw_divv==0 ) THEN
-        DIVV_UP=0.00
-        DIVV_LO=0.00
-      END IF
+      ! DIVV_UP=BOLTZ*0.5*(XIONN(1,J+1)*TI(2,J+1)+XIONN(1,J)*TI(2,J))*
+      !>     (IVEL(1,3)-IVEL(1,2))/B_UP
+      !>   +BOLTZ*0.5*(XIONN(2,J+1)*TI(2,J+1)+XIONN(2,J)*TI(2,J))*
+      !>     (IVEL(2,3)-IVEL(2,2))/B_UP
+      ! DIVV_LO=BOLTZ*0.5*(XIONN(1,J)*TI(2,J)+XIONN(1,J-1)*TI(2,J-1))*
+      !>     (IVEL(1,2)-IVEL(1,1))/B_UP
+      !>   +BOLTZ*0.5*(XIONN(2,J)*TI(2,J)+XIONN(2,J-1)*TI(2,J-1))*
+      !>     (IVEL(2,2)-IVEL(2,1))/B_UP
+
+      DIVV_UP=0.00
+      DIVV_LO=0.00
 
       !.. Integrated energy equation for ions
       F(1)=DERIVT-ElossI+IlossN-HFLUX_UP+HFLUX_LO-RCrate
@@ -237,12 +235,12 @@ C.. TERLIN interpolates and the integration is done between the midpoints.
      >                 N,    !.. O+, H+, He+, minor ion densities array
      >                TI,    !.. Ion and electron temperatures
      >             TISAV,    !.. temperatures at previous time step
-     >                 F)    !.. OUTPUT: The integrated continuity equation
+     >                 F,mp,lp)    !.. OUTPUT: The integrated continuity equation
       USE THERMOSPHERE         !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE FIELD_LINE_GRID      !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE ION_DEN_VEL          !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
-      USE module_input_parameters,ONLY: sw_divv
       IMPLICIT NONE
+      INTEGER mp,lp
       INTEGER J,ILJ,ID,I,K
       !.. I/O parameters, see comments above
       DOUBLE PRECISION DT,N(4,FLDIM),TI(3,FLDIM),TISAV(3,FLDIM),F(20)
@@ -277,7 +275,7 @@ C.. TERLIN interpolates and the integration is done between the midpoints.
         CALL GET_CONDUCTIVITY(TI(3,K),NE,ON(K),O2N(K),N2N(K),HE(K)
      >      ,HN(K),KE(I))
         !.. ion and neutral cooling rates
-        CALL GET_EcoolN(K,TI(3,K),NE,CE_NEUT(I))
+        CALL GET_EcoolN(K,TI(3,K),NE,CE_NEUT(I),mp,lp)
         !.. Electron - ion energy exchange
         CALL GET_EcoolI(K,FLDIM,TI(3,K),TI(2,K),BM(K),CE_ION(I))
         !.. kNT is used in convection term div(vel)/ds coefficient
@@ -315,14 +313,11 @@ C.. TERLIN interpolates and the integration is done between the midpoints.
       !.. DIVV_UP and DIVV_LO are the values at the upper and lower .
       !.. bounds of the integral.
       !.. 2nd last term on RHS in Bailey, PSS 1983 equation 15
-      IF ( sw_divv==1 ) THEN
-      DIVV_UP=0.5*(kNT(3)+kNT(2))*(EVEL(3)-EVEL(2))/B_UP
-      DIVV_LO=0.5*(kNT(2)+kNT(1))*(EVEL(2)-EVEL(1))/B_LO
-      ELSE IF ( sw_divv==0 ) THEN
-        DIVV_UP=0.00
-        DIVV_LO=0.00
-      END IF
-       
+      !DIVV_UP=0.5*(kNT(3)+kNT(2))*(EVEL(3)-EVEL(2))/B_UP
+      !DIVV_LO=0.5*(kNT(2)+kNT(1))*(EVEL(2)-EVEL(1))/B_LO
+
+      DIVV_UP=0.00
+      DIVV_LO=0.00
 
       !.. Integrated energy equation for ions
       F(2)=DERIVT+ElossI+ElossN-EHrate- HFLUX_UP+HFLUX_LO
@@ -348,11 +343,12 @@ C... Schunk and Nagy Rev Geophys (1978) p366
       SUBROUTINE GET_EcoolN(K,   !.. actual point on the field line
      >                     TE,   !.. Ion and electron temperatures
      >                     NE,   !.. Electron density
-     >                CE_NEUT)   !.. Cooling rate to neutrals
+     >                CE_NEUT,mp,lp)   !.. Cooling rate to neutrals
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE THERMOSPHERE       !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE ION_DEN_VEL        !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       IMPLICIT NONE
+      INTEGER mp,lp
       INTEGER K                        !.. actual point on the field line
       DOUBLE PRECISION TE,NE,CE_NEUT   !.. I/O parameters, see above
       DOUBLE PRECISION SQTE,TDIF,TDIFRT  !.. Computer efficiency parameters
@@ -421,6 +417,12 @@ C... Schunk and Nagy Rev Geophys (1978) p366
         IF(EXH.GT.70.0) EXH=70.0
         EXH2=22713.0*TDIFRT
         IF(EXH2.GT.70.0) EXH2=70.0
+! GHGM
+!       if((mp.eq.65).and.(lp.eq.30)) then
+!       write(6,88) k,ne,on(k),exh,exh2,te,tn(k)
+!88     format('GHGM ECOOL N ', i6,6e12.4)
+!       endif
+! GHGM
         LF1D=-1.57E-12*NE*ON(K)*EXP(EXH)*(EXP(-EXH2)-1.0)
 
  14     KEN=LEN2+LEO2+LEO+LEH+LRN2+LRO2

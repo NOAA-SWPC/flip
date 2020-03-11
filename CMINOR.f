@@ -3,13 +3,15 @@ C....... This subroutine evaluates the minor ion and neutral densities
 C....... from chemical equilibrium and is also used for printing the
 C....... production and loss rates for the FLIP model. P. Richards
 C....... Sep 1989
-      SUBROUTINE CMINOR(I,J,JP,IHEPLS,INPLS,INNO,FD,ID,N,TI,Z,EFLAG)
+      SUBROUTINE CMINOR(I,J,JP,IHEPLS,INPLS,INNO,FD,ID,N,TI,Z,EFLAG,
+     >                  mp,lp)                       
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       !..EUVION PEXCIT PEPION OTHPR1 OTHPR2 SUMION SUMEXC PAUION PAUEXC NPLSPRD
       USE PRODUCTION !.. EUV, photoelectron, and auroral production
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE MINORNEUT !.. N4S N2D NNO N2P N2A O1D O1S
       IMPLICIT NONE
+      integer mp,lp
       INTEGER I,II,J,K,ITS,ID,JITER,JP
       INTEGER INNO  !.. switch to turn on FLIP NO calculation if <0
       INTEGER IHEPLS,INPLS  !.. switches He+ and N+ diffusive solutions on if > 0
@@ -78,16 +80,19 @@ C....... Sep 1989
       IF(I.EQ.1.OR.I.EQ.-1.OR.I.GT.2) GO TO 12
 
       !.. . First guess for [e] using previous stored values
+! GHGM just O+ and H+ here also.....
       ZNE=XIONN(1,J)+XIONN(2,J)+XIONN(3,J)+XIONN(4,J)+XIONN(5,J)+
      >  XIONN(6,J)+XIONN(7,J)
+! GHGM
+!     ZNE=XIONN(1,J)+XIONN(2,J)
       ZNESAV=ZNE
       CALL CO2P(J,0,0,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE,PO2P,DO2P
-     > ,TOTO2I,N(1,J),OP2D,N2PLUS,NPLUS,N4S(J),NNO(J),OP2P)
+     > ,TOTO2I,N(1,J),OP2D,N2PLUS,NPLUS,N4S(J),NNO(J),OP2P,mp,lp)
 
       !.. .... no+
       CALL CNOP(J,0,0,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE,PNOP
      > ,DNOP,N(1,J),N2PLUS,O2PLUS,N4S(J),NNO(J),NPLUS,N2P(J)
-     >  ,PLYNOP,N2D(J),OP2D)
+     >  ,PLYNOP,N2D(J),OP2D,mp,lp)
 
       !.. calculation of [e] analytically for first guess in Newton
       B=N(1,J)+N(2,J)+N2PLUS
@@ -116,12 +121,12 @@ C....... Sep 1989
       !...... o2+
       CALL CO2P(J,0,0,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE,PO2P
      > ,O2PLUS,TOTO2I,N(1,J),OP2D,N2PLUS,NPLUS,N4S(J)
-     > ,NNO(J),OP2P)
+     > ,NNO(J),OP2P,mp,lp)
 
       !...... no+
       CALL CNOP(J,0,0,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE,PNOP
      > ,NOPLUS,N(1,J),N2PLUS,O2PLUS,N4S(J),NNO(J),NPLUS,N2P(J)
-     > ,PLYNOP,N2D(J),OP2D)
+     > ,PLYNOP,N2D(J),OP2D,mp,lp)
 
       FEX(ITS)=ZNE-N(1,J)-N(2,J)-NOPLUS-O2PLUS-N2PLUS-
      >  OP2D-OP2P-NPLUS-HEPLUS
@@ -130,6 +135,9 @@ C....... Sep 1989
       JITER=JITER+1
       DEX=(FEX(2)-FEX(1))/H
       ZNE=ZNE-H-FEX(1)/DEX
+! GHGM - stop ZNE from going to zero....
+      if(zne.lt.0.000001) zne = zne + 0.000001
+! GHGM
       IF(JITER.GT.9) GO TO 14
       IF(ABS(FEX(1)/DEX/ZNE).GT.1.0E-2) GO TO 9
       DX=ABS(FEX(1)/DEX)
@@ -262,11 +270,11 @@ C....... Sep 1989
 
       IF(I.EQ.12) CALL CNOP(J,ID,JP,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE
      > ,PNOP,NOPLUS,N(1,J),N2PLUS,O2PLUS,N4S(J),NNO(J),NPLUS
-     > ,N2P(J),PLYNOP,N2D(J),OP2D)
+     > ,N2P(J),PLYNOP,N2D(J),OP2D,mp,lp)
 
       IF(I.EQ.13) CALL CO2P(J,ID,JP,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE
      > ,PO2P,O2PLUS,TOTO2I,N(1,J),OP2D,N2PLUS,NPLUS,N4S(J)
-     > ,NNO(J),OP2P)
+     > ,NNO(J),OP2P,mp,lp)
 
       IF(I.EQ.14) THEN
         EUVP4S=EUVION(1,7,J)
@@ -304,6 +312,7 @@ C....... Sep 1989
       !.. IF(I.EQ.26) N2+(v) no longer available
 
       IF(I.EQ.27) CALL PRDPRB(J,ID,JP,Z(J))
+
 
       RETURN
       END

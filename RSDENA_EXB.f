@@ -63,21 +63,7 @@ C.. Reference  Torr, et al., J. Geophys. Res., 95, 21,147-21,168, 1990.
         !.. (JSJ=0) but not on call from DMATRX
         IF(JSJ.EQ.0) XIONV(I,J)=VU(I)
 
-        !.. Print components in the continuity equation for each ion.
-        IF(JSJ.EQ.-4) THEN
-          !.. write header, but only once
-          IF(IUN.NE.172) THEN
-            IUN=172
-            WRITE(IUN,665) 
-          ENDIF
-          WRITE(IUN,666) J,Z(J),FLU(I),FLL(I),FGR,Q(I),L(I),F(I)
-     >      ,TINCR(I)
-          IF(I.EQ.2) WRITE(IUN,*) '   ' !.. blank line
-        ENDIF
       ENDDO
- 665  FORMAT(6X,'J    ALT         FLU         FLL       FGR'
-     > ,9X,'Q         L          F          VEL       TINCR')
- 666  FORMAT(1X,'FIJ',I4,F10.2,1P,22E11.3)
       RETURN
       END
 C:::::::::::::::::::::::::::::::: VEL ::::::::::::::::::::::::::::::::
@@ -93,7 +79,7 @@ C-------------------------------------------------------------------
      >             ION,    !.. # of ions (2)
      >               V,    !.. Ion velocities
      >            FLUX,    !.. Ion Fluxes 
-     >               N,    !.. O+, H+, He+, minor ion densities array
+     >               ion_density,    !.. O+, H+, He+, minor ion densities array
      >              TI,    !.. Ion and electron temperatures
      >             JSJ)    !.. used to print diagnostics if JSJ NE 0 or 1
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
@@ -104,7 +90,7 @@ C-------------------------------------------------------------------
       INTEGER ION        !.. number of ions to solve = 2 (O+,H+)
       INTEGER I,K,IUN    !.. I, K= loop control, IUN= unit to write
       INTEGER J,JSJ      !.. See I/O parameters
-      DOUBLE PRECISION N(4,FLDIM),TI(3,FLDIM),V(2),FLUX(2)
+      DOUBLE PRECISION ion_density(4,FLDIM),TI(3,FLDIM),V(2),FLUX(2)
       DOUBLE PRECISION MASS(4),A(4)      !.. Mass and atomic # of O+,H+, He+
       DOUBLE PRECISION PP(4),NEU,NEL,NE  !.. Interpolated ions and electrons
       !.. Collision stuff from routine JP      
@@ -117,18 +103,22 @@ C-------------------------------------------------------------------
       DATA MASS/26.7616E-24,1.6726E-24,6.6904E-24,0.0/,A/16,1,4,0/
 
       !.. Exponential interpolation for densities
-      PP(1)=DSQRT(N(1,J+1)*N(1,J))          !.. Midpoint O+ density
-      PP(2)=DSQRT(N(2,J+1)*N(2,J))          !.. Midpoint H+ density
+      PP(1)=DSQRT(ion_density(1,J+1)*ion_density(1,J))          !.. Midpoint O+ density
+      PP(2)=DSQRT(ion_density(2,J+1)*ion_density(2,J))          !.. Midpoint H+ density
       PP(3)=DSQRT(XIONN(3,J+1)*XIONN(3,J))  !.. Midpoint He+ density
 
-      NEU=N(1,J+1)+N(2,J+1)+N(3,J+1)+XIONN(3,J+1)  !.. upper e density
-      NEL=N(1,J)+N(2,J)+N(3,J)+XIONN(3,J)          !.. lower e density
+      NEU=ion_density(1,J+1)+ion_density(2,J+1)+ion_density(3,J+1)+
+     >    XIONN(3,J+1)  !.. upper e density
+      NEL=ion_density(1,J)+ion_density(2,J)+ion_density(3,J)+
+     >    XIONN(3,J)          !.. lower e density
       !.. Midpoint electron densities
-      NE=DSQRT(N(1,J+1)*N(1,J))+DSQRT(N(2,J+1)*N(2,J))+
-     >   DSQRT(N(3,J+1)*N(3,J))+DSQRT(XIONN(3,J+1)*XIONN(3,J))
+      NE=DSQRT(ion_density(1,J+1)*ion_density(1,J))+
+     >   DSQRT(ion_density(2,J+1)*ion_density(2,J))+
+     >   DSQRT(ion_density(3,J+1)*ion_density(3,J))+
+     >   DSQRT(XIONN(3,J+1)*XIONN(3,J))
 
       !.. call JP to obtain D(i),GAMMA,ALPHA,ALPHAS,and B for V(i)
-      CALL JP(J,PP,D,GAMMA,ALPHA,ALPHAS,B,JSJ,MASS,A)
+      CALL MAURICE_SCHUNK_1977(J,PP,D,GAMMA,ALPHA,ALPHAS,B,JSJ,MASS,A)
 
       !-- calculate altitude derivatives not dependent on ion density
       GRADNE=TEJ(J)*(NEU-NEL)/NE
@@ -137,7 +127,7 @@ C-------------------------------------------------------------------
       !.. Terms in the momentum equation. Consult St. Maurice 
       !.. and Schunk [1977] equation (19)
       DO I=1,ION
-        DLNI=(N(I,J+1)-N(I,J))/DS(J)/PP(I)  !.. ion density gradient
+        DLNI=(ion_density(I,J+1)-ion_density(I,J))/DS(J)/PP(I)  !.. ion density gradient
         GRA=-MASS(I)*GRAV(J)                !.. gravity
         K=3-I
         !ALPP=(ALPHA(I,K)-ALPHAS(I,K))*GRADTI(J)/(PP(1)+PP(2))
@@ -191,7 +181,7 @@ C--- The ratio of neutral-ion collision frequencies is also calculated
 C--- and returned in array B.
 C--- Note this version includes collisions with He+
 C-------------------------------------------------------------------
-      SUBROUTINE JP(J,    !.. point on the field line
+      SUBROUTINE MAURICE_SCHUNK_1977(J,    !.. point on the field line
      >             PP,    !.. interpolated ion and e densities
      >              D,    !.. Diffusion coefficient
      >          GAMMA,    !.. See St. Maurice ref

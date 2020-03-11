@@ -7,12 +7,10 @@ C.... 2001, page 21,305. Rates different from Fox and Sung indicated by PGR
 C.... Rates updated by P. Richards in May 2009
       SUBROUTINE RATS(J,TE,TI,TN,RTS)
       IMPLICIT REAL(A-H,L,N-Z)
-      include "gptl.inc"
       DOUBLE PRECISION TE,TI,TN,RTS,T13,TOT_NP_O2_RATE
       DIMENSION RTS(99)
       integer ret
 
-c     ret = gptlstart ('RATS')
       !.. zero out array
       DO 898 ITJS=1,99
  898  RTS(ITJS)=0.0
@@ -366,7 +364,6 @@ c     ret = gptlstart ('RATS')
       RTS(98)=2.87E-10*(TE/300)**0.91
 
 	!.. RTS(99) used in the RVN2PB file for N2+(v) + O > N2 + O+ calculation
-c     ret = gptlstop ('RATS')
 
         RETURN
         END

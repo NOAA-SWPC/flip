@@ -14,15 +14,13 @@ C--- Consult file RSLPSD-Algorithm.doc for detailed explanation
      >                    TI,   !.. Ion and electron temperatures
      >                  DTIN,   !.. Time step from calling program
      >                 DTMIN,   !.. Minimum time step
-     >                 EFLAG)   !.. OUTPUT: Error flag array
+     >                 EFLAG,mp,lp,nflag)   !.. OUTPUT: Error flag array
       USE SOLVARR       !... DELTA RHS WORK S, Variables for solver
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
 !dbg20120301: N+ problem: "IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE "
-      USE module_input_parameters,ONLY:sw_LCE,ht_LCE,sw_DEBUG_flip
-     &,sw_init_guess_flip,ZLBDY_flip,dt_init_guess_flip
-      USE module_IO,ONLY: PRUNIT
       IMPLICIT NONE
+      integer mp,lp,i_which_call
       INTEGER FLDIM                      !.. Field line grid array dimension
       INTEGER NFLAG,EFLAG(11,11)         !.. error flags
       INTEGER I,J,JC,ITER                !.. Loop control variables
@@ -60,14 +58,14 @@ C--- Consult file RSLPSD-Algorithm.doc for detailed explanation
 
 !dbg20120301: this part was commented out on 20110815, but un-comment again to solve for N+ problem: "IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE " i don't remember why we decided to comment out here and i cannot find a program to setup the local chem equil anywhere else???
 !dbg20110815      !.. Use local equilibrium for densities if flux tube apex height < 200 km
-	IF(sw_LCE.AND.Z(JEQ).LT.ht_LCE) THEN !ht_LCE=200.
-         DO J=JMIN,JMAX
-           CALL HOEQ(FLDIM,J,N,TI)
-           XIONV(1,J)=0.0
-           XIONV(2,J)=0.0
-         ENDDO
-         RETURN
-	ENDIF 
+!	IF(sw_LCE.AND.Z(JEQ).LT.ht_LCE) THEN !ht_LCE=200.
+!         DO J=JMIN,JMAX
+!           CALL HOEQ(FLDIM,J,N,TI)
+!           XIONV(1,J)=0.0
+!           XIONV(2,J)=0.0
+!         ENDDO
+!         RETURN
+!	ENDIF 
 !dbg20110815:
       !.. Use local equilibrium for densities if flux tube
       !.. apex height < ZLBDY + some increment (1.0 km?)
@@ -112,11 +110,7 @@ C*** OUTER LOOP: Return here on Non-Convergence with reduced time step
         IEQ=2*(MIT-2)         !.. Number of equations to set up      
 !dbg20120304:
       if ( IEQ<=2 ) then
-        print *,'!STOP! INVALID MIT=',MIT,JBNS,JBNN,ZLBDY
-        do j=jmin,jmax
-         print *,j,z(j)
-        enddo
-        STOP
+        STOP 'STOP! sub-DLOOPS:MIT'
       end if
 
         !.. Main loop: On each iteration the Jacobian is formed and solved for
@@ -139,8 +133,6 @@ C*** OUTER LOOP: Return here on Non-Convergence with reduced time step
             RHS(KR+2)=F(2)
           ENDDO
 
-!dbg20120304
-      if ( sw_DEBUG_flip==1 )  print *,'DMATRX: IEQ',IEQ
           !.. Create the Jacobian matrix
           CALL DMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,JBNN,JBNS,MIT,NION,NSAVE)
 
@@ -148,15 +140,11 @@ C*** OUTER LOOP: Return here on Non-Convergence with reduced time step
           !.. invert the jacobian matrix 'S' in the inversion routine BDSLV.
           !.. the increments are stored in array delta in this order
           !.. x(1...n,j),x(1...n,j+1),x(1...n,j+2),....x(1...n,jmax-1)
-!dbg20120304
-      if ( sw_DEBUG_flip==1 )  print *,'O+H+ BDSLV: IEQ',IEQ
-          CALL BDSLV(IEQ,3,S,0,RHS,DELTA,WORK,NFLAG)
+          i_which_call = 3
+          CALL BDSLV(IEQ,3,S,0,RHS,DELTA,WORK,NFLAG,
+     >               mp,lp,i_which_call)
 
           IF(NFLAG.NE.0) THEN
-            IF(EFLAG(11,11).EQ.1) 
-!dbg20120304     & WRITE(6,'(/A,I5,A,I5)')
-     & WRITE(PRUNIT,'(/A,I5,A,I5)')
-     >       '  ITERATION =',ITER,'  RETURN FROM BDSLV =',NFLAG
             EFLAG(2,2)=-1   !.. Report problem to calling routine
             RETURN
           ENDIF
@@ -254,13 +242,16 @@ C*** OUTER LOOP: Return here on Non-Convergence with reduced time step
             N(1,J)=NSAVE(1,J)
             N(2,J)=NSAVE(2,J)
 !20121130 Phil suggested to try this! it might help in finding a solution for convergence error...
-            if ( sw_init_guess_flip ) then
-           !.. Try a different initial guess. Could use random increment
-               IF(DT.LT.dt_init_guess_flip) THEN
-                  N(1,J)=0.9*NSAVE(1,J)
-                  N(2,J)=0.9*NSAVE(2,J) 
-               END IF
-            end if !( sw_init_guess_flip ) then
+! GHGM the below 0.9 stuff was switched on in this version
+! but Naomi always has it switched off - so I've commented it out....
+! GHGM
+!            if ( sw_init_guess_flip ) then
+!          !.. Try a different initial guess. Could use random increment
+!              IF(DT .LT. 60) THEN
+!                 N(1,J)=0.9*NSAVE(1,J)
+!                 N(2,J)=0.9*NSAVE(2,J) 
+!              END IF
+!            end if !( sw_init_guess_flip ) then
 !20121130
           ENDDO
           !.. Raise lower boundary if the problem is only below 200 km

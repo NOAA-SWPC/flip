@@ -7,15 +7,14 @@ C.... Cleaned up and commented by P. Richards in April 2000
      >              DTIN,    !.. Time step in
      >             DTMIN,    !.. Minimum time step
      >            IHEPNP,    !.. He+ - N+ switch
-     >             EFLAG)    !.. OUTPUT: Error flag array
-      USE module_input_parameters,ONLY: mype
+     >             EFLAG,mp,lp,i_which_call)    !.. OUTPUT: Error flag array
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE SOLVARR        !... DELTA RHS WORK S, Variables for solver
       USE ION_DEN_VEL    !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       !..EUVION PEXCIT PEPION OTHPR1 OTHPR2 SUMION SUMEXC PAUION PAUEXC NPLSPRD
       USE PRODUCTION !.. EUV, photoelectron, and auroral production
       IMPLICIT NONE
-      include "gptl.inc"
+      integer mp,lp,i_which_call
       INTEGER NION,IHEPNP,J,ITER,IRHS,IBW,I
       INTEGER EFLAG(11,11),NFLAG                  !.. solution procedure error flags
       INTEGER JBNN,JBNS,JEQ,JC                    !.. boundary indices
@@ -76,23 +75,19 @@ C.... Cleaned up and commented by P. Richards in April 2000
 !dbg20110815
       !.. Use local equilibrium for He+ densities if apex height < ZLBHE
       IF(IHEPNP.EQ.9.AND.Z(JEQ).LE.ZLBHE) THEN
-        ret = gptlstart ('XION_1')
         DO J=JMIN,JMAX
           CALL MCHEMQ(J,DUM,N,TI,FLDIM)
           XIONN(3,J)=DUM(1)      !.. He+
         ENDDO
-        ret = gptlstop  ('XION_1')
         RETURN
       ENDIF
 
       !.. Use local equilibrium for N+ densities if apex height < ZLBNP
       IF(IHEPNP.EQ.11.AND.Z(JEQ).LE.ZLBNP) THEN
-        ret = gptlstart ('XION_2')
         DO J=JMIN,JMAX
           CALL NCHEMQ(J,DUM,N,TI,FLDIM)
           XIONN(4,J)=DUM(1)      !.. N+
         ENDDO
-        ret = gptlstop  ('XION_2')
         RETURN
       ENDIF 
 !dbg20110815
@@ -100,10 +95,8 @@ C.... Cleaned up and commented by P. Richards in April 2000
 
       !... calculate average values for quantities that don't
       !... change in Newton iteration
-      ret = gptlstart ('XION_3')
       CALL DENAVE(JMAX-1,TI)
       CALL AVDEN2(JMAX-1,TI,IHEPNP)
-      ret = gptlstop  ('XION_3')
 
 C- OUTER LOOP Return here on Non-Convergence with reduced time step
   10  CONTINUE
@@ -126,7 +119,6 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
         !************* Main Newton Solver Iteration Loop begins *****************
         DO 220 ITER=1,20
           !.. set boundary conditions on density
-          ret = gptlstart ('XION_4')
           DO J=JMIN,JMAX
             IF(J.LE.JBNN.OR.J.GE.JBNS) THEN
               IF(IABS(IHEPNP).EQ.9) CALL 
@@ -136,10 +128,8 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
               N(1,J)=DUM(1)
             ENDIF
           ENDDO
-          ret = gptlstop  ('XION_4')
 
           !.. call MDFIJ to get unperturbed value to calculate dFij/dn
-          ret = gptlstart ('XION_5')
           DO J=2,MIT-1
             KR=NION*(J-2)
             JC=J+JBNN-1
@@ -148,29 +138,22 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
               RHS(KR+IRHS)=F(IRHS)
             ENDDO
           ENDDO
-          ret = gptlstop  ('XION_5')
           !.. Now set up the Jacobian Matrix dFij/dn
-!         print*,'XION_6',mype,iter
-          ret = gptlstart ('XION_hep')
 !nm20130111: distinguished he+ v.s. n+ according to phil's suggestion
           IF(IABS(IHEPNP).EQ.9) !he+  
      >     CALL HMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,JBNN,JBNS,MIT,IHEPNP,
      >      XMAS,NION,NMSAVE)
-          ret = gptlstop  ('XION_hep')
-          ret = gptlstart ('XION_np')
           IF(IABS(IHEPNP).EQ.11)  !n+ 
      >     CALL NMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,JBNN,JBNS,MIT,IHEPNP,
      >      XMAS,NION,NMSAVE)
-          ret = gptlstop  ('XION_np')
 
 
           !.. invert the jacobian matriX *s* in the inversion routine *bdslv*.
           !.. the increments are stored in array delta in this order
           !.. X(1...n,j),X(1...n,j+1),X(1...n,j+2),....X(1...n,jmaX-1)
           IBW=2*NION-1
-          ret = gptlstart ('XION_7')
-          CALL BDSLV(IEQ,IBW,S,0,RHS,DELTA,WORK,NFLAG)
-          ret = gptlstop  ('XION_7')
+          CALL BDSLV(IEQ,IBW,S,0,RHS,DELTA,WORK,NFLAG,
+     >                mp,lp,i_which_call)
 
           !.. Check for problems in band solver
           EFLAG(3,2)=0     
@@ -184,7 +167,6 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
             RETURN
           ENDIF
 
-          ret = gptlstart ('XION_8')
           IDIV=0             !... convergence indicator
           DCR=1.0            !... convergence indicator
 
@@ -214,7 +196,6 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
               N(I,JC)=N(I,JC)-DINC*ADCR
               IF(ABS(DINC/N(I,JC)).GT.1E-3)  IDIV=IDIV+1
  42       CONTINUE
-          ret = gptlstop  ('XION_8')
 
           !.. test to see if convergence has occured.
           IF(IDIV.EQ.0)  GO TO 230
@@ -747,7 +728,6 @@ C.... Consult file RSLPSD-Algorithm.doc for detailed explanation
      >                   NSPC,   !.. # of species
      >                 NMSAVE)   !.. saved density N at time t (for dn/dt)
       IMPLICIT NONE
-      include "gptl.inc"
       INTEGER FLDIM,INEQ,JBNN,JBNS,MIT,IHEPNP,NSPC   !.. see I/O comments above
       INTEGER KZS,JZS,JF,J1,J2,IV,JV,L,M,KRV,JVC,JFC,IS !.. Loop control variables
       DOUBLE PRECISION F(20)   !.. Function values at time t + delt
@@ -756,25 +736,20 @@ C.... Consult file RSLPSD-Algorithm.doc for detailed explanation
 !nm20130111
       integer ret
 
-      ret = gptlstart ('HMATRX_1')
       DO JZS=1,INEQ        !.. loop over # of equations
       DO KZS=1,4*NSPC-1    !.. loop over band width
         S(JZS,KZS)=0.0
       ENDDO
       ENDDO
-      ret = gptlstop  ('HMATRX_1')
 
       !.. Loop to fill up the band matrix with the numerical derivative
       !.. outer loop is over the grid points
-      ret = gptlstart ('HMATRX_2')
       DO JF=2,MIT-1
         J1=MAX0(2,JF-1)     !.. first column index in band
         J2=MIN0(JF+1,MIT-1) !.. last column index in band
         !.. loop over species
-      ret = gptlstart ('HMATRX_3')
         DO IV=1,NSPC
           !.. loop over densities at grid points j-1, j, and j+1
-      ret = gptlstart ('HMATRX_4')
           DO JV=J1,J2
             L=NSPC*(JF-2)    !.. band matrix row index
             !.. Band matrix column index
@@ -789,24 +764,17 @@ C.... Consult file RSLPSD-Algorithm.doc for detailed explanation
             N(IV,JVC)=N(IV,JVC)+H !.. increment density
 
             !.. Obtain the function at the new density
-      ret = gptlstart ('HMATRX_5')
             CALL MDFIJ(JFC,1,NSPC,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMA,NMSAVE)
-      ret = gptlstop  ('HMATRX_5')
             N(IV,JVC)=N(IV,JVC)-H   !.. restore density
 
             !.. Store derivatives in the band matrix
-      ret = gptlstart ('HMATRX_6')
             DO IS=1,NSPC
               IF(JF.LE.3) S(L+IS,M)=(F(IS)-RHS(L+IS))/H
               IF(JF.GT.3) S(L+IS,M-IS)=(F(IS)-RHS(L+IS))/H
             ENDDO
-      ret = gptlstop  ('HMATRX_6')
           ENDDO
-      ret = gptlstop  ('HMATRX_4')
         ENDDO
-      ret = gptlstop  ('HMATRX_3')
       ENDDO
-      ret = gptlstop  ('HMATRX_2')
 
       RETURN
       END

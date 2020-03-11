@@ -84,9 +84,9 @@ C..... The input parameters JMIN, EHT were also added
 !dbg20120206:
 !dbg      print *,'sub-Neut_Heating: JPR',JPR
       !.. O2 dissociation rate frequency (s-1) See Roble et al. JGR 1987, p8745
-      IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(121,150)
- 150  FORMAT(3X,' O2 dissociation rate frequency (s-1)'
-     > ,/3X,'ALT   S-R    N2D+O2  N4S+O2  N++O2   E+O2+   N+O2+  TOTAL')
+!     IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(121,150)
+!150  FORMAT(3X,' O2 dissociation rate frequency (s-1)'
+!    > ,/3X,'ALT   S-R    N2D+O2  N4S+O2  N++O2   E+O2+   N+O2+  TOTAL')
       HR(1)=PO1DSR/O2N
       HR(2)=N2D*RTS(16)
       HR(3)=RTS(7)*N4S
@@ -94,14 +94,14 @@ C..... The input parameters JMIN, EHT were also added
       HR(5)=RTS(6)*NE*O2PLUS/O2N
       HR(6)=RTS(21)*O2PLUS*N4S/O2N
       O2DISF=HR(1)+HR(2)+HR(3)+HR(4)+HR(5)+HR(6)
-      IF(JPR.GT.0) WRITE(121,88) ALT,(HR(K),K=1,6),O2DISF
+!     IF(JPR.GT.0) WRITE(121,88) ALT,(HR(K),K=1,6),O2DISF
 
       !.. neutral-neutral kinetic heating
-      IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(122,154)
- 154  FORMAT(2X,' Neutral-Neutral kinetic heating'
-     > ,/2X,'ALT   N2D+O   N2D+O2   O+N2A   O+N2P   N+NO'
-     > ,4X,'N+O2   O1D+O   O1D+N2  O1D+O2   total    O1D'
-     > ,5X,'O1S     N2D     N2P     N2A     NNO     N4S     O2N')
+!     IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(122,154)
+!154  FORMAT(2X,' Neutral-Neutral kinetic heating'
+!    > ,/2X,'ALT   N2D+O   N2D+O2   O+N2A   O+N2P   N+NO'
+!    > ,4X,'N+O2   O1D+O   O1D+N2  O1D+O2   total    O1D'
+!    > ,5X,'O1S     N2D     N2P     N2A     NNO     N4S     O2N')
       !.. Note that N(2D)+e is not included in total n-n heating because it 
       !.. is included in the photoelectron flux and appears as thermal
       !.. electron energy - Richards, Planet. Space Sci., 34, 689, 1996.
@@ -121,15 +121,15 @@ C..... The input parameters JMIN, EHT were also added
       HR(9)=1.96*O1D*O2N*RTS(34)
       HRATE(2)=HR(7)+HR(8)+HR(9)   !.. Total heating from O(1D)
 
-      IF(JPR.GT.0) WRITE(122,88) ALT,(HR(K),K=1,9),HRATE(1)+HRATE(2)
-     >  ,O1D,O1S,N2D,N2P,N2A,NNO,N4S,O2N
+!     IF(JPR.GT.0) WRITE(122,88) ALT,(HR(K),K=1,9),HRATE(1)+HRATE(2)
+!    >  ,O1D,O1S,N2D,N2P,N2A,NNO,N4S,O2N
 
       !.. ion-neutral kinetic heating
-      IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(123,155)
- 155   FORMAT(2X,'ion-neutral kinetic heating'
-     > ,/2X,'ALT   O+N2+   E+N2+   O2+N2+  E+NO+   E+O2+   N+O2+'
-     > ,3X,'NO+O2+  N2+O+   O2+O+    O2+N+   O2+N+  O+N+   O+2D+N2'
-     > ,1X,'O+2D+e  O+2P+N2 O+2P+e   N2D+O+   total')
+!     IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(123,155)
+!155   FORMAT(2X,'ion-neutral kinetic heating'
+!    > ,/2X,'ALT   O+N2+   E+N2+   O2+N2+  E+NO+   E+O2+   N+O2+'
+!    > ,3X,'NO+O2+  N2+O+   O2+O+    O2+N+   O2+N+  O+N+   O+2D+N2'
+!    > ,1X,'O+2D+e  O+2P+N2 O+2P+e   N2D+O+   total')
       HR(1)=0.70*RTS(10)*OXN*N2PLUS
       HR(2)=3.44*RTS(11)*NE*N2PLUS
       HR(3)=3.53*RTS(17)*O2N*N2PLUS
@@ -150,7 +150,7 @@ C..... The input parameters JMIN, EHT were also added
       !.. Total ion-neutral kinetic heating
       HRATE(3)=HR(1)+HR(2)+HR(3)+HR(4)+HR(5)+HR(6)+HR(7)+HR(8)+HR(9)
      > +HR(10)+HR(11)+HR(12)+HR(13)+HR(14)+HR(15)+HR(16)+HR(17)
-      IF(JPR.GT.0) WRITE(123,88) ALT,(HR(K),K=1,17),HRATE(3)
+!     IF(JPR.GT.0) WRITE(123,88) ALT,(HR(K),K=1,17),HRATE(3)
 
       !.. Electron cooling - heats the neutrals
       NMINOR=NOPLUS+O2PLUS+N2PLUS
@@ -241,19 +241,19 @@ C..... The input parameters JMIN, EHT were also added
       !.. Total heating rates. The heating per unit mass is for comparing with
       !.. Roble et al JGR 1987, p8745. Note that their SRC seems to include O(1D)
       !.. that is produced by SR dissociation.
-      IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(126,159)
- 159   FORMAT(9X,'Total neutral heating rates and O2 dissociation freq'
-     > ,/9X,'<......................... heating rates (eV/cm3/s .......'
-     > ,'...................>|<,,,,,,,,,,,,, log heating rates per mass'
-     > ,' (ergs/gm/s) ,,,,,,,,,,,,,,,,,,,,,,,>'
-     > ,/3X,'ALT   neu_neu     O1D     ion_neu   elec_ion  SRO2dis'
-     > ,3X,'UVN2dis     3bod     Total    neu_neu     O1D     ion_neu'
-     > ,3X,'elec_ion  SRO2dis   UVN2dis    3bod     Total     O2_diss')
-      IF(JPR.GT.0) WRITE(126,'(F7.2,1P,22E10.2)') ALT,
-     >  (HRATE(K),K=1,7),NHEAT
-     > ,(DLOG10(HRATE(K)/CF),K=1,7),DLOG10(NHEAT/CF),O2DISF
+!     IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(126,159)
+!159   FORMAT(9X,'Total neutral heating rates and O2 dissociation freq'
+!    > ,/9X,'<......................... heating rates (eV/cm3/s .......'
+!    > ,'...................>|<,,,,,,,,,,,,, log heating rates per mass'
+!    > ,' (ergs/gm/s) ,,,,,,,,,,,,,,,,,,,,,,,>'
+!    > ,/3X,'ALT   neu_neu     O1D     ion_neu   elec_ion  SRO2dis'
+!    > ,3X,'UVN2dis     3bod     Total    neu_neu     O1D     ion_neu'
+!    > ,3X,'elec_ion  SRO2dis   UVN2dis    3bod     Total     O2_diss')
+!     IF(JPR.GT.0) WRITE(126,'(F7.2,1P,22E10.2)') ALT,
+!    >  (HRATE(K),K=1,7),NHEAT
+!    > ,(DLOG10(HRATE(K)/CF),K=1,7),DLOG10(NHEAT/CF),O2DISF
 
- 88   FORMAT(F6.1,1P,22E8.1)
+!88   FORMAT(F6.1,1P,22E8.1)
 
       RETURN
        END
@@ -268,10 +268,10 @@ C.... file of the FLIP run and also in the FLIPRINT phase
       DIMENSION FD(9),COOL(22) !.. heating and cooling rates
 C
       
-      IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(ID,757)
- 757  FORMAT(/,8X,'Thermal electron cooling(C_) and heating(H_) rates'
-     > /,6X,'ALT  Te   Ti   Tn     C_ei      C_rN2     C_rO2    C_vN2'
-     > ,6X,'C_vO2     C_fsO     C_O1D     C_tot    H_tot     H_N2D')
+!     IF(IJ.EQ.JMIN.AND.JPR.GT.0) WRITE(ID,757)
+!757  FORMAT(/,8X,'Thermal electron cooling(C_) and heating(H_) rates'
+!    > /,6X,'ALT  Te   Ti   Tn     C_ei      C_rN2     C_rO2    C_vN2'
+!    > ,6X,'C_vO2     C_fsO     C_O1D     C_tot    H_tot     H_N2D')
         TLSS=0.0
         LFO=0.0
 
@@ -363,9 +363,9 @@ C......... electron heating from N(2D) .....
       DO III=1,8
         FD(III)=0.0
       ENDDO
-      IF(JPR.GT.0) WRITE(ID,54) ALT,INT(TE),INT(TI),INT(TN),KEI
-     > ,LRN2,LRO2,LVN2,LVO2,LFO,LF1D,TLSS+LFO+KEI,EHT,HN2D
- 54    FORMAT(F9.1,3I5,1P,22E10.2)
+!     IF(JPR.GT.0) WRITE(ID,54) ALT,INT(TE),INT(TI),INT(TN),KEI
+!    > ,LRN2,LRO2,LVN2,LVO2,LFO,LF1D,TLSS+LFO+KEI,EHT,HN2D
+!54    FORMAT(F9.1,3I5,1P,22E10.2)
 
       COOL(1)=EHT
       COOL(2)=KEI

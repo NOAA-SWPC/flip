@@ -15,23 +15,24 @@ C.... Consult file RSLPST-Algorithm.doc for detailed explanation
      >                    TI,   !.. Ion and electron temperatures
      >                  DTIN,   !.. Time step from calling program
      >                 DTMIN,   !.. Minimum time step
-     >                 EFLAG)   !.. OUTPUT: Error flag array
+     >                 EFLAG,mp,lp,nflag)   !.. OUTPUT: Error flag array
       USE SOLVARR       !... DELTA RHS WORK S, Variables for solver
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       IMPLICIT NONE
-      INTEGER FLDIM                      !.. Field line grid array dimension
+      integer mp,lp,i_which_call
+      INTEGER FLDIM                !.. Field line grid array dimension
       INTEGER NFLAG,EFLAG(11,11)         !.. error flags
       INTEGER I,J,JC,NTI,ITER            !.. Loop control variables
       INTEGER IDIV,KR,ION,IEQ,MIT        !.. solution variables
       INTEGER JBNN,JBNS,JBTN,JBTS        !.. boundary indices
       INTEGER JMIN,JEQ,JMAX              !.. spatial grid indices
       DOUBLE PRECISION DT,DTIN,DTMIN,DTINC !.. Time step variables
-      DOUBLE PRECISION ZLBDY,ZTBDY       !.. lower boundary altitudes for N & T
+      DOUBLE PRECISION bound_alt_den,bound_alt_temp       !.. lower boundary altitudes for N & T
       DOUBLE PRECISION DCRP,DCRT,DINC,F(20) !.. solution variables
       !.. see above for description of Z,N,TI,HE
       DOUBLE PRECISION Z(FLDIM),N(4,FLDIM),TI(3,FLDIM)
       DOUBLE PRECISION NSAVE(2,FLDIM),TISAV(3,FLDIM),TIORIG(3,FLDIM)
-      DATA ZLBDY/120.0/,ZTBDY/100.0/
+      DATA bound_alt_den/120.0/,bound_alt_temp/101.0/
       DATA NTI/3/             !.. # of temperatures note T(O+)=T(H+)
 
       DT=DTIN           !.. Set time step for dT/dt
@@ -47,16 +48,16 @@ C.... Consult file RSLPST-Algorithm.doc for detailed explanation
      
       !.. Update indices for the lower boundaries. 
       DO J=JMIN,JEQ-1
-        IF(Z(J).LE.ZLBDY) JBNN=J
-        IF(Z(J).LE.ZTBDY) JBTN=J
+        IF(Z(J).LE.bound_alt_den) JBNN=J
+        IF(Z(J).LE.bound_alt_temp) JBTN=J
       ENDDO
       DO J=JMAX,JEQ,-1
-        IF(Z(J).LE.ZLBDY) JBNS=J
-        IF(Z(J).LE.ZTBDY) JBTS=J
+        IF(Z(J).LE.bound_alt_den) JBNS=J
+        IF(Z(J).LE.bound_alt_temp) JBTS=J
       ENDDO
 
       !.. Use Tn for Te and Ti if flux tube apex height < lower boundary.
-	IF(Z(JEQ).LE.ZTBDY) THEN 
+	IF(Z(JEQ).LE.bound_alt_temp) THEN 
         DO J=JMIN,JMAX
           TI(1,J)=TN(J)
           TI(2,J)=TN(J)
@@ -107,20 +108,23 @@ C*** OUTER LOOP: Return here on Non-Convergence with reduced time step
           DO J=2,MIT-1
             KR=2*(J-2)
             JC=J+JBTN-1
-            CALL TFIJ(JC,0,DT,N,TI,F,TISAV)
+            CALL TFIJ(JC,0,DT,N,TI,F,TISAV,mp,lp)
             RHS(KR+1)=F(1)
             RHS(KR+2)=F(2)
           ENDDO
 
           !.. Create the Jacobian matrix. Note NTI-1 because only TE 
           !.. and one TI solved
-          CALL TMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,JBTN,JBTS,MIT,NTI-1,TISAV)
+          CALL TMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,
+     >                 JBTN,JBTS,MIT,NTI-1,TISAV,mp,lp)
 
           !.. Solve the linear system with the band solver
           !.. invert the jacobian matrix 'S' in the inversion routine BDSLV.
           !.. the increments are stored in array delta in this order
           !.. x(1...n,j),x(1...n,j+1),x(1...n,j+2),....x(1...n,jmax-1)
-          CALL BDSLV(IEQ,3,S,0,RHS,DELTA,WORK,NFLAG)
+          i_which_call = 4
+          CALL BDSLV(IEQ,3,S,0,RHS,DELTA,WORK,NFLAG,mp,lp,i_which_call)
+ 
 
           IF(NFLAG.NE.0) THEN
             IF(EFLAG(11,11).EQ.1) WRITE(6,'(/A,I5,A,I5)')
@@ -229,8 +233,9 @@ C.... Consult file RSLPST-Algorithm.doc for detailed explanation
      >                   JBNS,   !.. Lower boundary index in south
      >                    MIT,   !.. # of points on field line
      >                   NSPC,   !.. # of species
-     >                  TISAV)   !.. saved density N at time t (for dn/dt)
+     >                  TISAV,mp,lp)   !.. saved density N at time t (for dn/dt)
       IMPLICIT NONE
+      INTEGER mp,lp
       INTEGER FLDIM,INEQ,JBNN,JBNS,MIT,NSPC   !.. see I/O comments above
       INTEGER KZS,JZS,JF,J1,J2,IV,JV,L,M,KRV,JVC,JFC,IS !.. Loop control variables
       DOUBLE PRECISION F(20)   !.. Function values at time t + delt
@@ -266,7 +271,7 @@ C.... Consult file RSLPST-Algorithm.doc for detailed explanation
             TI(IV+1,JVC)=TI(IV+1,JVC)+H !.. increment temperature
 
             !.. Obtain the function at the new temperature
-            CALL TFIJ(JFC,1,DT,N,TI,F,TISAV)
+            CALL TFIJ(JFC,1,DT,N,TI,F,TISAV,mp,lp)
             TI(IV+1,JVC)=TI(IV+1,JVC)-H   !.. restore temperature
 
             !.. Store derivatives in the band matrix

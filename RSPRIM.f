@@ -9,7 +9,6 @@ C------ light sources instead of using subroutine NYTE.
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE MINORNEUT !.. N4S N2D NNO N2P N2A O1D O1S
       USE PHOTOIONIZATION_DATA  !.. NPOT LMAX PROB ZLAM SIGION SIGABS TPOT 
-      USE module_input_parameters,ONLY: FNFAC_flip
       IMPLICIT NONE
       INTEGER IJ,IS,IK,I,L,K1,K
       DOUBLE PRECISION XN(3),COLUMN(3),TAU,FLUX,HEPLS,FBSBN
@@ -110,7 +109,7 @@ C------ light sources instead of using subroutine NYTE.
 !If the densities were larger than 1.0E4 /cc at 110 km, they would be
 !observed by ionosondes, which they are not. In any case, I don't think
 !anyone knows what the E-region densities are at night. 
-          FNFAC=FNFAC_flip
+          !FNFAC=FNFAC_flip
           FLUXN=FNFAC*(F107/75.0)*FNITE(L)*EXP(-TAUN)
           FLUX=EUVFLUX(L)*EXP(-TAU) + FLUXN
 

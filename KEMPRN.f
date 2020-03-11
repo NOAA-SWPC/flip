@@ -92,7 +92,7 @@ C.......n(2d)
       PR(5)=RTS(63)*UVDISN
       PR(6)=RTS(65)*NPLUS*O2N
       PR(7)=N2P*RTS(57)
-	PR(8)=RTS(27)*N2A*ON
+      PR(8)=RTS(27)*N2A*ON
       LR(1)=ON*RTS(15)
       LR(2)=O2N*RTS(16)
       LR(3)=NE*RTS(8)
@@ -295,7 +295,7 @@ C..... in the (X,A,B states). PEN2P* same for p.e.s (X,A,B states)
       END
 C:::::::::::::::::::::::::::::: CNOPO ::::::::::::::::::::::::::::::::::
       SUBROUTINE CNOPO(J,I,JP,Z,RTS,ON,O2N,N2N,NE,P1,NOP,OPLS
-     >  ,N2PLS,O2P,N4S,NNO,NPLUS,N2P,PLYNOP,N2D,OP2D)
+     >  ,N2PLS,O2P,N4S,NNO,NPLUS,N2P,PLYNOP,N2D,OP2D,mp,lp)
 C........no+
       IMPLICIT DOUBLE PRECISION(A-H,L,N-Z)
       DIMENSION RTS(99),LR(22),PR(22)
@@ -328,7 +328,8 @@ C........no+
       END
 C::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
       SUBROUTINE CO2P(J,I,JP,Z,RTS,ON,O2N,N2N,NE,P1
-     > ,O2P,TPROD5,OPLS,OP2D,N2PLS,NPLUS,N4S,NNO,OP2P)
+     > ,O2P,TPROD5,OPLS,OP2D,N2PLS,NPLUS,N4S,NNO,OP2P,
+     > mp,ilp)
 C........o2+
       IMPLICIT DOUBLE PRECISION(A-H,L,N-Z)
       DIMENSION RTS(99),LR(22),PR(22)
@@ -981,8 +982,9 @@ C...... Research papers, NO. 991, "An infrared spectral radiance code
 C...... for the auroral thermosphere (AARC)
 C...... Written by P. Richards in February 2004
       SUBROUTINE CNOP(J,I,JP,Z,RTS,ON,O2N,N2N,NE,P1,NOP,OPLS
-     >  ,N2PLS,O2P,N4S,NNO,NPLUS,N2P,PLYNOP,N2D,OP2D)
+     >  ,N2PLS,O2P,N4S,NNO,NPLUS,N2P,PLYNOP,N2D,OP2D,mp,lp)
       IMPLICIT NONE
+      INTEGER mp,lp
       INTEGER J,I,JP,INV,IJ,IV,K
       PARAMETER (INV=20)            !.. NO+(v) array dimensions
       DOUBLE PRECISION Z,RTS(99),   !.. Altitude, rate coefficients
@@ -1017,12 +1019,12 @@ C...... Written by P. Richards in February 2004
       DATA PRV11/0,.05,.07,.09,.11,.13,.14,.17,.07,.01,.02,.06,.08,7*0/
       DATA PRV12/0,.05,.07,.09,.11,.13,.14,.17,.07,.01,.02,.06,.08,7*0/
 
-	DATA K_N2_Q/7.0E-12/  !.. Quenching rate coeff. by N2
+      DATA K_N2_Q/7.0E-12/  !.. Quenching rate coeff. by N2
       DATA EINSCO1/0.0,10.9,20.2,28.4,35.5,41.5,46.6,50.9,54.3,57.0,
      >     58.9,60.2,60.8,60.7,59.9,5*60.0/  !.. Einstein coeff delv=1
       DATA EINSCO2/0.0,0.0,.697,1.93,3.61,5.74,8.24,11.1,14.2,17.7,
      >     21.3,25.1,29.0,33.2,37.4,5*40.0/ !.. Einstein coeff delv=1
-	!.. rate factors for NO+(v)+e -> N + O. Sheehan and St-Maurice 2004
+      !.. rate factors for NO+(v)+e -> N + O. Sheehan and St-Maurice 2004
       DATA LRV/1.0,19*0.3333/    
       
       !... Evaluate total production and loss rates
