@@ -16,3 +16,7 @@ RSPRIM.o : RSPRIM.f CTIPE-int.o module_decomp.o
 RSTEMC_EXB.o : RSTEMC_EXB.f CTIPE-int.o module_decomp.o 
 Rates.o : Rates.f module_decomp.o 
 initialize_module_parameters.o : initialize_module_parameters.f CTIPE-int.o module_decomp.o 
+module_tirosdata.o : module_tirosdata.f module_decomp.o 
+sub_ionize_ipe.o : sub_ionize_ipe.f module_tirosdata.o module_decomp.o 
+sub_tiros_init.o : sub_tiros_init.f module_tirosdata.o module_decomp.o 
+sub_tiros_ionize.o : sub_tiros_ionize.f module_tirosdata.o module_decomp.o 

@@ -25,7 +25,7 @@ C ...... modification here by PR Aug 91
       IF(M.GT.N-1) THEN
 !dbg20120306         WRITE(6,918)
 !sms$ignore begin
-         WRITE(PRUNIT,918)mype
+         WRITE(PRUNIT,918) mype
 !sms$ignore end
 918      FORMAT('    IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE',i10)
          NFLAG=3
@@ -65,8 +65,8 @@ C
 !sms$ignore end
 919   FORMAT('    IN BDSLV, ROW',I6,' IS ZERO IN INPUT MATRIX',i10)
       NFLAG=2
-!nm20170111: commented out to restore the old version
-!!dbg20140610: code must stop if this error happens!
+!dbg20140610: code must stop if this error happens!
+!nm20170111: commented out to get WAM-IPE keep going at the initial trial stage by loosening error stop.
 !      sw_ERSTOP_flip=1
       RETURN
 114   SCALE(I)=1./BIG
@@ -111,7 +111,7 @@ C
       IF(S(N,1)) 126,118,126
 C  ..... PR mod in Aug 91
 !dbg20120306: 118   WRITE(6,917)
-118   WRITE(PRUNIT,917)mype
+118   WRITE(PRUNIT,917) mype
 917   FORMAT('  IN BDSLV &&&&&&&&   ZERO PIVOT ELEMENT',i10)
       NFLAG=1
       RETURN

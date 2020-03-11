@@ -47,6 +47,16 @@ C.. Reference  Torr, et al., J. Geophys. Res., 95, 21,147-21,168, 1990.
       DO I=1,ION
         TINCR(I)=(PM(I)-ANM(I))/DT      !.. dn/dt
         FGR=(FLU(I)/BU-FLL(I)/BL)       !.. flux
+
+!nm20150516(3): production=0
+!      q(i)=0.0
+!nm20150516(4): loss=0
+!      L(I)=0.0
+!nm20150516(5): flux=0
+!       FGR=0.0
+!nm20150516(5): flux=0
+!       TINCR(I)=0.0
+
         F(I)=Q(I)-L(I)-TINCR(I)-FGR     !.. continuity equation
 
         !.. Store velocity for use in other routines on call from DLOOPS 
