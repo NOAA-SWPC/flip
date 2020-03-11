@@ -13,6 +13,8 @@ C
       END
 C:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
       SUBROUTINE BNDX(N,M,A,KS,B,X,S,SCALE,INDEX,MUL,NFLAG,IW,M1)
+      USE module_IO,ONLY: PRUNIT
+      USE module_input_parameters,ONLY:sw_ERSTOP_flip,mype
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
       DOUBLE PRECISION MUL(M1,N)
       DIMENSION A(N,IW),B(N),X(N),SCALE(N),INDEX(N),S(N,IW)
@@ -21,8 +23,11 @@ C:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
       IBW=2*M+1
 C ...... modification here by PR Aug 91
       IF(M.GT.N-1) THEN
-         WRITE(6,918)
-918      FORMAT('    IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE')
+!dbg20120306         WRITE(6,918)
+!sms$ignore begin
+         WRITE(PRUNIT,918)mype
+!sms$ignore end
+918      FORMAT('    IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE',i10)
          NFLAG=3
          RETURN
       ENDIF
@@ -54,9 +59,15 @@ C
 110   BIG=ABS(S(I,J))
 111   CONTINUE
       IF(BIG) 114,112,114
-  112 WRITE(6,919)I
-919   FORMAT('    IN BDSLV, ROW',I3,' IS ZERO IN INPUT MATRIX')
+!dbg20120306  112 WRITE(6,919)I
+!sms$ignore begin
+  112 WRITE(PRUNIT,919)I,mype
+!sms$ignore end
+919   FORMAT('    IN BDSLV, ROW',I6,' IS ZERO IN INPUT MATRIX',i10)
       NFLAG=2
+!nm20170111: commented out to restore the old version
+!!dbg20140610: code must stop if this error happens!
+!      sw_ERSTOP_flip=1
       RETURN
 114   SCALE(I)=1./BIG
 115   CONTINUE
@@ -99,8 +110,9 @@ C
 C
       IF(S(N,1)) 126,118,126
 C  ..... PR mod in Aug 91
-118   WRITE(6,917)
-917   FORMAT('  IN BDSLV &&&&&&&&   ZERO PIVOT ELEMENT')
+!dbg20120306: 118   WRITE(6,917)
+118   WRITE(PRUNIT,917)mype
+917   FORMAT('  IN BDSLV &&&&&&&&   ZERO PIVOT ELEMENT',i10)
       NFLAG=1
       RETURN
 C

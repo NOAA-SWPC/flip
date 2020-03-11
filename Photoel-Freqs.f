@@ -72,7 +72,7 @@ C.. P. Richards March 2004
 	INTEGER IOXO2P,IN2P    !.. Indices of energy bins for primaries
       INTEGER IDELEV         !.. index for energy bin spread
       REAL F107,F107A        !.. solar indices
-      REAL AUGE(3)           !.. energy of Auger electrons
+      REAL AUGE(3)        !.. energy of Auger electrons
       REAL APOTE(3)          !.. Potential energy for Auger electrons
       REAL AFLUXE9(IAUG)     !.. Normalized SEE reference photon flux in
       REAL AUG_FLUX(IAUG)    !.. SEE reference photon flux
@@ -84,7 +84,7 @@ C.. P. Richards March 2004
       !.. Avakyan et al. give O:474-509, N2: 315-367, O2:456-507 eV
       !.. The O  average and range has have been modified to smooth 
 	!.. out the photoelectron spectrum
-      DATA AUGE/480.0,480.0,340.0/
+      DATA AUGE/480,480,340/
       DATA APOTE/533.0,533.0,400.0/   !.. Ionization potential for Augers
 
       DATA WLAUG/2.5,7.5,12.5,17.5,22.5,27.5,32.5,37.5/
@@ -111,7 +111,7 @@ C.. P. Richards March 2004
       !.. First treat N2
       DO I=1,IAUG
         !.. Primary electron has energy of photon E - ionization E
-        IN2P=NINT(12397.7/WLAUG(I)-APOTE(3))
+        IN2P=NINT(12397.7/WLAUG(I)-INT(APOTE(3)))
         !.. make sure the electrons in array bounds
         IF(IN2P.LT.IDELEV) IN2P=IDELEV+1
         IF(IN2P+IDELEV.GT.800) IN2P=800-IDELEV-1
@@ -121,7 +121,7 @@ C.. P. Richards March 2004
 
         !.. N2 Auger electrons are spread over several bins near 360 eV. 
         !.. See Winningham et al. JGR 1989 page 15338
-        DO K=AUGE(3)-IDELEV,AUGE(3)+IDELEV
+        DO K=INT(AUGE(3))-IDELEV,INT(AUGE(3))+IDELEV
           PRODN2(K)=PRODN2(K)+ AFLUXE9(I)*N2AXS(I)/DELEV
         ENDDO
       ENDDO
@@ -129,7 +129,7 @@ C.. P. Richards March 2004
       !.. Now treat O and O2. 
       DO I=1,IAUG-1     !.. Note 35A (360 eV) photons cannot produce Augers 
         !.. Primary electron has energy of photon E - ionization E
-        IOXO2P=NINT(12397.7/WLAUG(I)-APOTE(1))
+        IOXO2P=NINT(12397.7/WLAUG(I)-INT(APOTE(1)))
         !.. make sure the electrons in array bounds
         IF(IOXO2P.LT.IDELEV) IOXO2P=IDELEV+1
         IF(IOXO2P+IDELEV.GT.800) IOXO2P=800-IDELEV-1
@@ -140,7 +140,7 @@ C.. P. Richards March 2004
 
         !.. O and O2 Auger electrons are spread over several bins near 500 eV. 
         !.. See Winningham et al. JGR 1989 page 15338
-        DO K=AUGE(1)-IDELEV,AUGE(1)+IDELEV
+        DO K=INT(AUGE(1))-IDELEV,INT(AUGE(1))+IDELEV
           PRODOX(K)=PRODOX(K)+ AFLUXE9(I)*OXAXS(I)/DELEV
           PRODO2(K)=PRODO2(K)+ AFLUXE9(I)*O2AXS(I)/DELEV
         ENDDO

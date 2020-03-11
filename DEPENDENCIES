@@ -1,0 +1,18 @@
+CMINOR.o : CMINOR.f CTIPE-int.o module_decomp.o 
+CTIPE-int.o : CTIPE-int.f module_decomp.o 
+ELECXS.o : ELECXS.f module_decomp.o 
+FLIP_GRID.o : FLIP_GRID.f module_decomp.o 
+INIT-PROFILES.o : INIT-PROFILES.f CTIPE-int.o module_decomp.o 
+KEMPRN.o : KEMPRN.f CTIPE-int.o module_decomp.o 
+MINORA.o : MINORA.f CTIPE-int.o module_decomp.o 
+Neut_Heating.o : Neut_Heating.f CTIPE-int.o module_decomp.o 
+Photoel-Freqs.o : Photoel-Freqs.f module_decomp.o 
+RSDENA_EXB.o : RSDENA_EXB.f CTIPE-int.o module_decomp.o 
+RSJACA.o : RSJACA.f module_decomp.o 
+RSLPSD.o : RSLPSD.f CTIPE-int.o module_decomp.o 
+RSLPST.o : RSLPST.f CTIPE-int.o module_decomp.o 
+RSPE2B.o : RSPE2B.f CTIPE-int.o module_decomp.o 
+RSPRIM.o : RSPRIM.f CTIPE-int.o module_decomp.o 
+RSTEMC_EXB.o : RSTEMC_EXB.f CTIPE-int.o module_decomp.o 
+Rates.o : Rates.f module_decomp.o 
+initialize_module_parameters.o : initialize_module_parameters.f CTIPE-int.o module_decomp.o 

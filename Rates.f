@@ -7,9 +7,12 @@ C.... 2001, page 21,305. Rates different from Fox and Sung indicated by PGR
 C.... Rates updated by P. Richards in May 2009
       SUBROUTINE RATS(J,TE,TI,TN,RTS)
       IMPLICIT REAL(A-H,L,N-Z)
+      include "gptl.inc"
       DOUBLE PRECISION TE,TI,TN,RTS,T13,TOT_NP_O2_RATE
       DIMENSION RTS(99)
+      integer ret
 
+c     ret = gptlstart ('RATS')
       !.. zero out array
       DO 898 ITJS=1,99
  898  RTS(ITJS)=0.0
@@ -61,7 +64,7 @@ C.... Rates updated by P. Richards in May 2009
 
       !.. N2+ + O -> NO+ + N   Scott et al.[1999]
       IF(TI.LE.1500) RTS(10)= 1.33E-10*(300/TI)**0.44
-      IF(TI.GT.1500) RTS(10)= 6.55E-11*(1500/TI)**-0.2
+      IF(TI.GT.1500) RTS(10)= 6.55E-11*(1500/TI)**(-0.2)
 
       !.. N2+ + e -> N + N  Mehr and Biondi (1969) = 1.8E-7*(300/TE)**0.39
       RTS(11)=2.2E-7*(300/TE)**0.39    !.. Zipf (1980)
@@ -100,11 +103,11 @@ C.... Rates updated by P. Richards in May 2009
 
       !.. N2 + O+(2D) -> N2+ + O   
       !..RTS(19)=8.0E-10                   !.. Johnson and Biondi
-      RTS(19)=1.50E-10*(300/Ti)**-0.55   !.. Li et al by PGR
+      RTS(19)=1.50E-10*(300/Ti)**(-0.55)   !.. Li et al by PGR
       
       !.. N2 + O+(2P) -> N2+ + 0    Fox 
       !.. RTS(20)=6.2E-10*EXP(-340/TI)   !.. Li et al from Fox wrong
-      RTS(20)=2.0E-10*(300/Ti)**-0.55    !.. Li et al by PGR
+      RTS(20)=2.0E-10*(300/Ti)**(-0.55)  !.. Li et al by PGR
 
       !.. O2+ + N(4S) -> NO+ + 0   Scott et al.[1999]
       RTS(21)=1.0E-10
@@ -112,7 +115,7 @@ C.... Rates updated by P. Richards in May 2009
       !.. N+ + O2 -> O+ + NO 
       !.. Torr and Torr gives 6.0E-10 for total N+ + O2 reaction rate
       !.. Dotan et al [1997] from Fox and Sung gives
-      !IF(TI.LE.1000) TOT_NP_O2_RATE=2.02E-10*(300/TI)**-0.45
+      !IF(TI.LE.1000) TOT_NP_O2_RATE=2.02E-10*(300/TI)**(-0.45)
       !IF(TI.GT.1000) TOT_NP_O2_RATE=3.49E-10
       !.. does not seem to be correct. Probably vibrationally excited O2
       !.. Branching ratios for N+ + O2 from O'Keefe et al J. Chem. Phys. 1986
@@ -167,15 +170,15 @@ C.... Rates updated by P. Richards in May 2009
 
 
       !.. N2(A3sig) + O -> O(1S) + N2
-      RTS(36)=2.5E-11*(TN/298)**0.55       !..  see Campbell et al. 2006
-      RTS(36)=2.0E-11                      ! .. Torr et al.
+      RTS(36)=2.0E-11                      !.. Torr et al.
+      RTS(36)=4.0E-11*(TN/298)**0.5        !.. Hill et al. JGR 2000
 
       !.. N(2P) + O -> products (N(2D,4S) and NO+) and O(3P,1D) 
       !.. from Piper et al 1993, J. Chem. Phys. vol 98 page 8560.
       RTS(37)=1.7E-11
 
       !.. N(2P) + O2 -> NO + O 
-      RTS(38)=3.9E-12*EXP(-60/TN)
+      RTS(38)=3.09E-12*EXP(-60/TN)
 
       !.. N(2P) quenching rates(O2+,NO) from Zipf et al jgr 1980 p687
       RTS(39)=2.2E-11
@@ -186,7 +189,7 @@ C.... Rates updated by P. Richards in May 2009
 
       !.. efficiency N2+ + O -> N2 + O+(4S)   
       IF(TI.LE.1500) RTS(42)= 7.0E-12*(300/TI)**0.21
-      IF(TI.GT.1500) RTS(42)= 4.83E-12*(1500/TI)**-0.41
+      IF(TI.GT.1500) RTS(42)= 4.83E-12*(1500/TI)**(-0.41)
       RTS(42)=RTS(42)/RTS(10)    !.. converts to efficiency
 
       !.. O+(2D) + O2 -> O2+ + O   Fox
@@ -241,7 +244,7 @@ C.... Rates updated by P. Richards in May 2009
       RTS(59)=1.0E-3*TOT_NP_O2_RATE 
 
       !.. Efficiency for   N2(A3sig) + O -> O(1S) + N2
-      RTS(60)=0.37
+      RTS(60)=0.75  !.. Piper, 1982. See Hill et al. JGR 2000
 
       !.. N(2D) -> N(4S) + hv
       RTS(61)=1.07E-5
@@ -300,7 +303,7 @@ C.... Rates updated by P. Richards in May 2009
       RTS(77) = 1.8E-10
 
       !.. O2+ + N(2D) -> N+ + O2
-      RTS(78) = 8.65E-10
+      RTS(78) = 8.65E-11
 
       !.. N2+ + N(4S) -> N+ + N2
       RTS(79) = 1.0E-11
@@ -363,6 +366,7 @@ C.... Rates updated by P. Richards in May 2009
       RTS(98)=2.87E-10*(TE/300)**0.91
 
 	!.. RTS(99) used in the RVN2PB file for N2+(v) + O > N2 + O+ calculation
+c     ret = gptlstop ('RATS')
 
         RETURN
         END
@@ -380,20 +384,20 @@ C.. Modified in April 20008 to write warnings in multiple files
       REAL R(98)             !.. standard reaction rate values
       DATA RTS/99*0.0/
       !.. rate values at the standard temperature
-      DATA R/4.96E-10,6.40E-10,6.7E-13,8.56E-12,1.44E-07,8.41E-08
-     > ,5.68E-13,1.02E-09,3.40E-11,7.83E-11,1.13E-07,3.30E-08,1.01E-07
-     > ,1.66E-08,6.90E-13,8.06E-12,1.26E-11,2.08E-19,2.91E-10,3.88E-10
-     > ,1.00E-10,0.0E-10,4.5E-10,1.99E-12,3.47E-10,4.0E-10,0.0,1.0E-11
-     > ,1.30E-10,7.42E-11,2.20E-12,1.46E+00,2.00E-11,3.42E-11,2.50E-11
-     > ,2.00E-11,1.70E-11,3.67E-12,2.20E-11,1.80E-10,6.70E-11,6.94E-02
-     > ,7.00E-10,5.20E-10,7.80E-10,8.50E-09,4.83E-10,1.95E-12,2.16E-08
-     > ,1.22E-07,9.34E-08,4.21E-09,4.60E-01,9.34E-03,1.06E+00,1.06E-01
-     > ,7.90E-02,5.00E-03,6.00E-13,3.70E-01,1.07E-05,5.00E-01,4.00E-01
-     > ,1.00E-01,1.49E-10,3.01E-10,1.00E-03,1.00E-01,7.66E-12,6.00E-02
-     > ,3.00E-01,3.00E-02,8.00E-02,1.00E-01,9.20E-12,2.37E-10,1.80E-10
-     > ,8.65E-10,1.00E-11,3.60E-10,3.54E-10,6.24E-11,1.20E-09,1.50E-10
-     > ,1.30E-10,1.30E-10,1.00E-11,1.20E-09,3.80E-09,1.90E-09,2.39E-11
-     > ,6.04E-10,4.60E-11,1.35E-09,1.00E-10,5.67E-10,9.50E-09,8.58E-10/
+      DATA R/4.96E-10,6.40E-10,6.7E-13,8.56E-12,1.44E-07,8.41E-08       ! 6
+     > ,5.68E-13,1.02E-09,3.40E-11,7.83E-11,1.38E-07,3.30E-08,1.01E-07  ! 13
+     > ,1.66E-08,6.90E-13,8.06E-12,1.26E-11,2.08E-19,2.91E-10,3.88E-10  ! 20
+     > ,1.00E-10,3.0E-11,4.5E-10,1.99E-12,2.10E-10,4.0E-10,0.0,1.0E-11  ! 28
+     > ,1.30E-10,5.40E-11,2.20E-12,1.46E+00,2.00E-11,3.42E-11,2.50E-11  ! 35
+     > ,4.86E-11,1.70E-11,2.91E-12,2.20E-11,1.80E-10,6.70E-11,6.94E-02  ! 42
+     > ,7.00E-10,5.20E-10,7.80E-10,8.50E-09,4.83E-10,1.95E-12,2.16E-08  ! 49
+     > ,1.22E-07,9.34E-08,4.21E-09,4.60E-01,9.34E-03,1.06E+00,1.06E-01  ! 56
+     > ,7.90E-02,5.00E-03,6.00E-13,7.50E-01,1.07E-05,5.00E-01,4.00E-01  ! 63
+     > ,1.00E-01,9.00E-11,2.16E-10,1.00E-03,1.00E-01,7.66E-12,6.00E-02  ! 70
+     > ,3.00E-01,3.00E-02,8.00E-02,1.00E-01,9.20E-12,2.37E-10,1.80E-10  ! 77
+     > ,8.65E-11,1.00E-11,3.60E-10,3.54E-10,6.24E-11,1.20E-09,1.50E-10  ! 84
+     > ,1.30E-10,1.30E-10,1.00E-11,1.20E-09,3.80E-09,1.90E-09,2.39E-11  ! 91
+     > ,6.04E-10,4.60E-11,1.35E-09,1.00E-10,5.67E-10,9.50E-09,8.58E-10/ ! 98
 
 
       JRTS=0

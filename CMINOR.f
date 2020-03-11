@@ -25,7 +25,6 @@ C....... Sep 1989
       DOUBLE PRECISION NOPLUS,N2PLUS,O2PLUS,NPLUS,OP2D,OP2P
       DOUBLE PRECISION N(4,IDIM),TI(3,IDIM),F(20),Z(IDIM)
       DOUBLE PRECISION BOD3,O2SS,O2B1,O2DEL,O2ADEL,O2ASIG
-      DOUBLE PRECISION P1,P2,P3,P4  !.. intermediate productions
       DOUBLE PRECISION EUVP4S,PEOP4S,PEOP2P
 
       DO II=1,9
@@ -202,12 +201,12 @@ C....... Sep 1989
       !.. EQN2D(J) used in PE2S only
       EQN2D(J)=N2D(J)*RTS(8)*ZNE
 
-      !... calc o+ prod. from minor ions
-      P1=OP2P*(RTS(26)*ON(J)+RTS(14)*ZNE+0.047)
-      P2=OP2D*(RTS(12)*ZNE+RTS(28)*ON(J))
-      P3=N2PLUS*RTS(99)*ON(J)
-      P4=NPLUS*ON(J)*RTS(31)
-      FD(9)=P1+P2+P3+P4
+      !... calc o+ prod. from minor ions      !$$$
+      FD(5)=OP2P*(RTS(26)*ON(J)+RTS(14)*ZNE+0.047)
+      FD(6)=OP2D*(RTS(12)*ZNE+RTS(28)*ON(J))
+      FD(7)=N2PLUS*RTS(99)*ON(J)
+      FD(8)=NPLUS*ON(J)*RTS(31)
+      FD(9)=FD(5)+FD(6)+FD(7)+FD(8)
 
       !.. Store minor ion densities
       XIONN(5,J)=NOPLUS
@@ -286,8 +285,8 @@ C....... Sep 1989
      >   ,OP2P,TOP2PI,PEOP2P,HEPLUS,N4S(J),NNO(J))
       ENDIF
 
-      IF(I.EQ.17) CALL CNPLS(J,ID,JP,INPLS,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE
-     > ,DISNP,NPLUS,N(1,J),N2D(J),OP2P,HEPLUS,OTHPR2(3,J)
+      IF(I.EQ.17) CALL CNPLS(J,ID,JP,INPLS,Z(J),RTS,ON(J),O2N(J),N2N(J)
+     > ,ZNE,DISNP,NPLUS,N(1,J),N2D(J),OP2P,HEPLUS,OTHPR2(3,J)
      > ,O2PLUS,N4S(J),OP2D,N2PLUS,NNO(J))
 
       IF(I.EQ.18) CALL CN2A(J,ID,JP,Z(J),RTS,ON(J),O2N(J),N2N(J),ZNE

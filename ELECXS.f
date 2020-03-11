@@ -597,7 +597,7 @@ C........ For testing electron excitation cross
 
       IF(MOD(NINT(EP),15).EQ.0.OR.JSAV.EQ.0) WRITE(6,89) 
 	JSAV=1
- 89   FORMAT(9X' E      tot1     fob      oth       A3'
+ 89   FORMAT(9X,' E      tot1     fob      oth       A3'
      > ,5X,'B3pi      C3      E3       a1pi     a1sigg    b1pi'
      > ,5X,'b1sig      W3   B3sig   a1sigu    w1')
 	WRITE(6,90) EP,SIGEX(3),SIGFOB,SIGFAC,(SIG(1,IS),IS=3,14)

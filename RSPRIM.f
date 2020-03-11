@@ -9,6 +9,7 @@ C------ light sources instead of using subroutine NYTE.
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE MINORNEUT !.. N4S N2D NNO N2P N2A O1D O1S
       USE PHOTOIONIZATION_DATA  !.. NPOT LMAX PROB ZLAM SIGION SIGABS TPOT 
+      USE module_input_parameters,ONLY: FNFAC_flip
       IMPLICIT NONE
       INTEGER IJ,IS,IK,I,L,K1,K
       DOUBLE PRECISION XN(3),COLUMN(3),TAU,FLUX,HEPLS,FBSBN
@@ -103,6 +104,13 @@ C------ light sources instead of using subroutine NYTE.
           IF(TAU.GT.70.0) TAU=70.0
           IF(TAUN.GT.70.0) TAUN=70.0
           !.. evaluate nighttime flux and daytime flux
+!nm20120304: For the case that doesn't converge, try increasing values of nighttime production.
+!Nighttime production is not well known. So long as the density in the
+!E-region around 110 km does not exceed about 1.0E4 /cc it should be OK.
+!If the densities were larger than 1.0E4 /cc at 110 km, they would be
+!observed by ionosondes, which they are not. In any case, I don't think
+!anyone knows what the E-region densities are at night. 
+          FNFAC=FNFAC_flip
           FLUXN=FNFAC*(F107/75.0)*FNITE(L)*EXP(-TAUN)
           FLUX=EUVFLUX(L)*EXP(-TAU) + FLUXN
 
@@ -159,36 +167,63 @@ C------ light sources instead of using subroutine NYTE.
  777  CONTINUE
       ENDDO  !... End of altitude loop
       END
-C::::::::::::::::::::::::::::::: SCHUMN ::::::::::::::::::::::::::::::::::::::::
-C......... production of O(1D) by schumann-runge bands
-C......... The fluxes are from Torr et al. GRL 1980 p6063. Scaling is
-C......... done using UVFAC which may be set according to F10.7 cm flux
-C......... may be done in FACEUV
-      SUBROUTINE SCHUMN(J,Z,O2N,COLUMN,SCHUPR,SCHUHT,UVFAC)
+C::::::::::::::::::::::::: SCHUMN ::::::::::::::::::::::::::::::::::::::::::::::
+C... production of o(1d) by schumann-runge bands
+C... The fluxes are from the SEE web site data. 
+C... P. Richards March 2011
+      SUBROUTINE SCHUMN (J,Z,O2N,COLUMN,SCHUPR,SCHUHT,UVFAC)
       IMPLICIT NONE
       INTEGER J,LMAX,LSR
       DOUBLE PRECISION Z,O2N,SCHUPR,SCHUHT,COLUMN(3),HSRX,FLD,SRXSCT
       REAL SRFLUX(8),SRXS(8),SRLAM(8),UVFAC(59)
-      DATA SRFLUX/2.4,1.4,.63,.44,.33,.17,.12,.053/
-      DATA SRXS/.5,1.5,3.4,6,10,13,15,12/
+      !.. Schumann-Runge fluxes * 1.0E-11
+      DATA SRFLUX/3.3074,1.9699,1.0785,.7083,.5008,.2890,.1651,.1269/
+      DATA SRXS/.5,1.5,3.4,6,10,13,15,11/
       DATA SRLAM/1725,1675,1625,1575,1525,1475,1425,1375/
 
       !.. lmax=# of lambdas in sub. primpr: schuht=heating: schupr=o(1d) prod
       LMAX=37
 
+      !.. Loop over the SR wavelengths
       DO LSR=1,8
-        !... photoabsorption cross section
-        SRXSCT=1.0E-18*SRXS(LSR)
+        SRXSCT=1.0E-18*SRXS(LSR)  !.. photoabsorption cross section
         HSRX=SRXSCT*COLUMN(2)
         IF(HSRX.GT.70)HSRX=70
         !.. attentuated solar flux
         FLD=UVFAC(LMAX+LSR)*1.E+11*SRFLUX(LSR)*EXP(-HSRX)
-        !...... neutral heating SCHUHT and photodissociation rate SCHUPR
+        !.. neutral heating SCHUHT and photodissociation rate SCHUPR
         SCHUHT=SCHUHT+1.24E+4*(FLD*SRXSCT)*O2N/SRLAM(LSR)
         SCHUPR=SCHUPR+FLD*SRXSCT
+        !WRITE(6,90) LSR,SRXSCT,FLD,SCHUPR,UVFAC(LMAX+LSR)*SRFLUX(LSR)
       ENDDO
 
       SCHUPR=O2N*SCHUPR
+ 90   FORMAT(2X,I5,1P,9E10.2)
+      RETURN
+      END
+C:::::::::::::::::::::::::: FACSR ::::::::::::::::::::::::::::::::
+C.... The Schumann-Runge factors are scaled according to F10.7
+C.... Using SEE fluxes
+C.... P. Richards March 2011
+      SUBROUTINE FACSR(UVFAC,F107,F107A)
+      DIMENSION UVFAC(59),SRFLUX(8),SEEFAC(8)
+      !.. ratio of fluxes for day 2002092 (P=196) and day 2007284 (P=68)
+      DATA SEEFAC/1.0844,1.0959,1.1176,1.1364,1.1837,1.1418,1.2151,
+     >           1.2826/
+
+      F107AV=(F107+F107A)*0.5
+      DO LSR=38,45
+        I=LSR-37
+        UVFAC(I)=1.0
+        A=(SEEFAC(I)-1)/128.0
+        B=1-A*68.0
+          UVFAC(LSR)=A*F107AV+B
+          IF(UVFAC(LSR).LT.0.8) UVFAC(LSR)=0.8
+          !WRITE(6,'(I6,9F11.3)') LSR,UVFAC(LSR)
+      ENDDO
+      DO I=46,50
+        UVFAC(I)=1.0
+      ENDDO
       RETURN
       END
 C:::::::::::::::::::::::::: SUMPRD :::::::::::::::::::::::::
@@ -316,26 +351,6 @@ C----- Written by P. Richards January 2009
       ENDDO
       RETURN
       END
-C::::::::::::::::::::::::::::::: FACSR :::::::::::::::::::::::::::
-C........ The Schumann-Runge factors are scaled according to F10.7
-C........ from Torr et al. GRL 1980 p6063
-      SUBROUTINE FACSR(UVFAC,F107,F107A)
-      DIMENSION UVFAC(59),SRFLUX(8),SRA(8),SRB(8)
-      !............. Schumann-Runge scaling
-      DATA SRFLUX/2.4,1.4,.63,.44,.33,.17,.12,.053/
-      !...... first two SRA and SRB values out of order in Marsha's paper
-      DATA SRA/25.5,20.7,13.2,11.6,11.3,7.86,7.68,4.56/
-      DATA SRB/222.,129.,53.4,36.0,25.0,11.3,6.35,2.05/
-
-         DO I=38,50
-            LSR=I-37
-            UVFAC(I)=1.0
-            IF(LSR.LE.8)
-     >      UVFAC(I)=(SRA(LSR)*1.0E7*F107+SRB(LSR)*1.0E9)/SRFLUX(LSR)
-     >           /1.0E11
-         ENDDO
-      RETURN
-      END
 C::::::::::::::::::::::::: NCOLUM :::::::::::::::::::::::::::::::::::::
 C++++ this routine evaluates the neutral column density
 C++++ see smith & smith jgr 1972 p 3592, subr ambs is the msis
@@ -380,7 +395,8 @@ C.... the MSIS model at grazing incidence
         !.. Bates-Walker temperature
         XI=(ZG-120.0)*(6357.0+120.0)/(6357.0+ZG)
         !.. GTN is the temperature at grazing incidence
-        GTN=MAX(TINF-(TINF-300.0)*EXP(-0.025*XI),180.0)
+!nm20110126: modified due to ibm xlf compiling error
+        GTN=MAX(TINF-(TINF-300.0)*EXP(-0.025*XI),180.0D0)
 
         !.. Neutral densities are extrapolated from altitude to grazing
         !.. using hydrostatic equilibrium
@@ -392,7 +408,8 @@ C.... the MSIS model at grazing incidence
         ENDDO
         IF(CHI.GE.1.75.AND.CHI.LT.-1.8)
      .  WRITE(88,'(7F8.2,1P,22E10.2)') Z/1.0E5,ZG,CHI*180/3.1416,
-     >      TNIN,TINF,GTN,TNJ,((XN(I),GN(I)),I=1,3)
+     >      TNIN,TINF,GTN,TNJ
+     >,(XN(I),GN(I),I=1,3)  !nm110210
         !.. Make sure that grazing incidence density is not lower than MSIS
         !.. This is for using non MSIS densities like CTIPe
         TNJ=GTN

@@ -8,13 +8,15 @@ C.... Cleaned up and commented by P. Richards in April 2000
      >             DTMIN,    !.. Minimum time step
      >            IHEPNP,    !.. He+ - N+ switch
      >             EFLAG)    !.. OUTPUT: Error flag array
+      USE module_input_parameters,ONLY: mype
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE SOLVARR        !... DELTA RHS WORK S, Variables for solver
       USE ION_DEN_VEL    !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       !..EUVION PEXCIT PEPION OTHPR1 OTHPR2 SUMION SUMEXC PAUION PAUEXC NPLSPRD
       USE PRODUCTION !.. EUV, photoelectron, and auroral production
       IMPLICIT NONE
-      INTEGER IPR,IHEPNP,J,ITER,IRHS,IBW,I
+      include "gptl.inc"
+      INTEGER NION,IHEPNP,J,ITER,IRHS,IBW,I
       INTEGER EFLAG(11,11),NFLAG                  !.. solution procedure error flags
       INTEGER JBNN,JBNS,JEQ,JC                    !.. boundary indices
       INTEGER IDIV,KR,ION,IEQ,MIT                 !.. solution variables
@@ -25,9 +27,11 @@ C.... Cleaned up and commented by P. Richards in April 2000
       DOUBLE PRECISION DT,DTIN,DTMIN,DTINC !.. Time step variables
       DOUBLE PRECISION ZLBHE,ZLBNP         !.. He+ & N+ lower boundary
       DOUBLE PRECISION XMAS,XMASS(9)       !.. Ion mass
+      DOUBLE PRECISION NMORIG(2,FLDIM)     !.. Original density at previous time step
+      integer ret
       DATA XMASS/23.4164D-24,26.7616D-24,6.6904D-24,6*0.0/
+      DATA NION/1/      ! # species: do not change
 
-      IPR=1      ! # species: do not change
       IF(IABS(IHEPNP).EQ.9)  XMAS=XMASS(3)  !.. FOR He+
       IF(IABS(IHEPNP).EQ.11) XMAS=XMASS(1)  !.. FOR N+
 
@@ -53,15 +57,53 @@ C.... Cleaned up and commented by P. Richards in April 2000
            N(3,J)=XIONN(4,J)+XIONN(5,J)+XIONN(6,J)+XIONN(7,J)+XIONN(8,J)
          ENDIF
          !..store minor ion density to calculate dn/dt
-         NMSAVE(1,J)=N(1,J)
+         NMSAVE(1,J)=N(1,J)    !.. density at previous intermediate time step
+         NMORIG(1,J)=N(1,J)    !.. Original density at previous time step
          DCRQ(1,J)=1.0
          DCRQ(2,J)=1.0
       ENDDO
 
+!dbg20120301: this part was commented out on 20110815, but un-comment again to solve for N+ problem: "IN BDSLV &&&&&&& BANDWIDTH IS TOO LARGE " i don't remember why we decided to comment out here and i cannot find a program to setup the local chem equil anywhere else???
+!dbg20110815      !.. Use local equilibrium for densities if flux tube apex height < 200 km
+!      IF(Z(JEQ).LT.200.0) THEN 
+!        DO J=JMIN,JMAX
+!          IF(IABS(IHEPNP).EQ.9) CALL MCHEMQ(J,DUM,N,TI,FLDIM)
+!          IF(IABS(IHEPNP).EQ.11) CALL NCHEMQ(J,DUM,N,TI,FLDIM)
+!          N(1,J)=DUM(1)
+!        ENDDO
+!        RETURN
+!      ENDIF
+!dbg20110815
+      !.. Use local equilibrium for He+ densities if apex height < ZLBHE
+      IF(IHEPNP.EQ.9.AND.Z(JEQ).LE.ZLBHE) THEN
+        ret = gptlstart ('XION_1')
+        DO J=JMIN,JMAX
+          CALL MCHEMQ(J,DUM,N,TI,FLDIM)
+          XIONN(3,J)=DUM(1)      !.. He+
+        ENDDO
+        ret = gptlstop  ('XION_1')
+        RETURN
+      ENDIF
+
+      !.. Use local equilibrium for N+ densities if apex height < ZLBNP
+      IF(IHEPNP.EQ.11.AND.Z(JEQ).LE.ZLBNP) THEN
+        ret = gptlstart ('XION_2')
+        DO J=JMIN,JMAX
+          CALL NCHEMQ(J,DUM,N,TI,FLDIM)
+          XIONN(4,J)=DUM(1)      !.. N+
+        ENDDO
+        ret = gptlstop  ('XION_2')
+        RETURN
+      ENDIF 
+!dbg20110815
+
+
       !... calculate average values for quantities that don't
       !... change in Newton iteration
+      ret = gptlstart ('XION_3')
       CALL DENAVE(JMAX-1,TI)
       CALL AVDEN2(JMAX-1,TI,IHEPNP)
+      ret = gptlstop  ('XION_3')
 
 C- OUTER LOOP Return here on Non-Convergence with reduced time step
   10  CONTINUE
@@ -82,8 +124,9 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
         IEQ=MIT-2             !.. Number of equations to set up      
 
         !************* Main Newton Solver Iteration Loop begins *****************
-        DO 220 ITER=1,10
+        DO 220 ITER=1,20
           !.. set boundary conditions on density
+          ret = gptlstart ('XION_4')
           DO J=JMIN,JMAX
             IF(J.LE.JBNN.OR.J.GE.JBNS) THEN
               IF(IABS(IHEPNP).EQ.9) CALL 
@@ -91,29 +134,44 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
               IF(IABS(IHEPNP).EQ.11) 
      >         CALL NCHEMQ(J,DUM,N,TI,FLDIM)
               N(1,J)=DUM(1)
-              N(2,J)=DUM(2)
             ENDIF
           ENDDO
+          ret = gptlstop  ('XION_4')
 
           !.. call MDFIJ to get unperturbed value to calculate dFij/dn
+          ret = gptlstart ('XION_5')
           DO J=2,MIT-1
-            KR=IPR*(J-2)
+            KR=NION*(J-2)
             JC=J+JBNN-1
-            CALL MDFIJ(JC,0,IPR,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMAS,NMSAVE)
-            DO IRHS=1,IPR
+            CALL MDFIJ(JC,0,NION,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMAS,NMSAVE)
+            DO IRHS=1,NION
               RHS(KR+IRHS)=F(IRHS)
             ENDDO
           ENDDO
+          ret = gptlstop  ('XION_5')
           !.. Now set up the Jacobian Matrix dFij/dn
-          CALL HMATRX(ISPEC,FLDIM,S,RHS,IEQ,IPR,DT,N,F,JBNN,JBNS,MIT,
-     >      TI,IHEPNP,XMAS,NMSAVE)
+!         print*,'XION_6',mype,iter
+          ret = gptlstart ('XION_hep')
+!nm20130111: distinguished he+ v.s. n+ according to phil's suggestion
+          IF(IABS(IHEPNP).EQ.9) !he+  
+     >     CALL HMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,JBNN,JBNS,MIT,IHEPNP,
+     >      XMAS,NION,NMSAVE)
+          ret = gptlstop  ('XION_hep')
+          ret = gptlstart ('XION_np')
+          IF(IABS(IHEPNP).EQ.11)  !n+ 
+     >     CALL NMATRX(FLDIM,S,RHS,IEQ,DT,N,TI,JBNN,JBNS,MIT,IHEPNP,
+     >      XMAS,NION,NMSAVE)
+          ret = gptlstop  ('XION_np')
+
 
           !.. invert the jacobian matriX *s* in the inversion routine *bdslv*.
           !.. the increments are stored in array delta in this order
           !.. X(1...n,j),X(1...n,j+1),X(1...n,j+2),....X(1...n,jmaX-1)
-          IBW=2*IPR-1
+          IBW=2*NION-1
+          ret = gptlstart ('XION_7')
           CALL BDSLV(IEQ,IBW,S,0,RHS,DELTA,WORK,NFLAG)
-     
+          ret = gptlstop  ('XION_7')
+
           !.. Check for problems in band solver
           EFLAG(3,2)=0     
           EFLAG(4,2)=0     
@@ -126,20 +184,21 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
             RETURN
           ENDIF
 
+          ret = gptlstart ('XION_8')
           IDIV=0             !... convergence indicator
           DCR=1.0            !... convergence indicator
 
           !.. test density increments 'dinc' to ensure density > 0 
           !.. (mod steepest descent)
-          DO  142 I=1,IPR
-            ION=2*IPR-I
+          DO  142 I=1,NION
+            ION=2*NION-I
             DO 142 J=2,MIT-1
               DCRP=1.0
               JC=JBNN+J-1
               DCRQ(I,JC)=1.0
-              DINC=DELTA(IPR*J-ION)
+              DINC=DELTA(NION*J-ION)
               IF(DINC.LE.0) GO TO 142
-              IF(ABS(DINC/N(I,JC)).GT.0.8) DCRP=0.5*ABS(N(I,JC)/DINC)
+              IF(ABS(DINC/N(I,JC)).GT.0.9999) DCRP=0.5*ABS(N(I,JC)/DINC)
               IF((DCRP.LT.DCR).AND.(Z(JC).GT.0.0)) DCR=DCRP
               IF(ITER.GT.0) DCRQ(I,JC)=DCRP
  142      CONTINUE
@@ -147,14 +206,15 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
           ADCR=DCR
           !.. add iterative increment to the density. 
           !.. convergence when IDIV=0. 
-          DO 42 I=1,IPR
-            ION=2*IPR-I
+          DO 42 I=1,NION
+            ION=2*NION-I
             DO 42 J=2,MIT-1
               JC=JBNN+J-1
-              DINC=DELTA(IPR*J-ION)
+              DINC=DELTA(NION*J-ION)
               N(I,JC)=N(I,JC)-DINC*ADCR
               IF(ABS(DINC/N(I,JC)).GT.1E-3)  IDIV=IDIV+1
  42       CONTINUE
+          ret = gptlstop  ('XION_8')
 
           !.. test to see if convergence has occured.
           IF(IDIV.EQ.0)  GO TO 230
@@ -170,11 +230,13 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
           DTINC=DTINC+DT   !.. Used for reduced timestep
           IF(EFLAG(11,11).EQ.1) WRITE(6,'(A,I5,9F14.2)')  
      >       ' He+ N+ ',ITER,DTINC,DTIN,DT
-          DO J=JMIN,JMAX
-            IF(IABS(IHEPNP).EQ.9) XIONN(3,J)=N(1,J)      ! He+
-            IF(IABS(IHEPNP).EQ.11) XIONN(4,J)=N(1,J)  ! N+
-          ENDDO
-          IF(DTINC.GE.DTIN-1) RETURN
+          IF(DTINC.GE.DTIN-1) THEN
+            DO J=JMIN,JMAX
+              IF(IABS(IHEPNP).EQ. 9) XIONN(3,J)=N(1,J)  ! He+
+              IF(IABS(IHEPNP).EQ.11) XIONN(4,J)=N(1,J)  ! N+
+            ENDDO
+            RETURN
+          ENDIF
           !.. increase time step if convergence is easy
           IF(ITER.LT.5.AND.DTINC+2*DT.LE.DTIN) DT=2*DT
           IF(ITER.LT.5.AND.DTINC+2*DT.GT.DTIN) DT=DTIN-DTINC
@@ -191,7 +253,7 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
           IF(IHEPNP.EQ.9.AND.DT.LT.DTIN/3.0)  ZLBHE=(ZLBHE+350)/2   
           IF(IHEPNP.EQ.11.AND.DT.LT.DTIN/3.0)  ZLBNP=(ZLBNP+350)/2   
           IF(EFLAG(11,11).EQ.1) WRITE(6,'(A,2I5,9F14.2)')  
-     >       ' He+ N+ 2nd ',-IHEPNP,ITER,DTINC,DTIN,DT,ZLBHE
+     >       ' He+ N+ 2nd ',-IHEPNP,ITER,DTINC,DTIN,DT,ZLBHE,ZLBNP
           DO J=JMIN,JMAX
             N(1,J)=NMSAVE(1,J)
           ENDDO
@@ -202,6 +264,11 @@ C- OUTER LOOP Return here on Non-Convergence with reduced time step
             IF(IABS(IHEPNP).EQ.11) EFLAG(4,1)=-1   !.. Report problem to calling routine
             IF(EFLAG(11,11).EQ.1) WRITE(6,'(A,9I5)') 
      >        '  ERR FLAGS MINA',IHEPNP
+            !.. Restore density to original input value
+            DO J=JMIN,JMAX
+              IF(IABS(IHEPNP).EQ.9) XIONN(3,J)=NMORIG(1,J)
+              IF(IABS(IHEPNP).EQ.11) XIONN(4,J)=NMORIG(1,J)
+            ENDDO
             RETURN
           ENDIF 
         ENDIF
@@ -215,17 +282,18 @@ C.... This routine sets up the He+ and H+ continuity equations to be
 C.... minimized by the Newton solver. See program DFIJ on RSDENA.FOR 
 C.... for more details
 
-      SUBROUTINE MDFIJ(J,JSJ,IPR,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMAS,NMSAVE)
+      SUBROUTINE MDFIJ(J,JSJ,NION,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMAS,
+     >  NMSAVE)
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE ION_DEN_VEL    !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       IMPLICIT NONE
-      INTEGER I,ION,J,JSJ,IPR,IHEPNP,ID
+      INTEGER I,J,JSJ,NION,IHEPNP,ID
       INTEGER JBNN,JBNS,JEQ                !.. boundary indices
       DOUBLE PRECISION VL(2),VU(2),FLU(2),FLL(2),ANM(2),PM(2),Q(2)
       DOUBLE PRECISION TINCR(2),N(4,FLDIM),TI(3,FLDIM),F(20)
       DOUBLE PRECISION NMSAVE(2,FLDIM),L(2),XMAS
       DOUBLE PRECISION BU,BL,BD,DT,FGR
-      DATA FLU/0.0,0.0/,ION/1/
+      DATA FLU/0.0,0.0/
 
       !... ID is the unit number for writing diagnostics in
       !... both hemispheres
@@ -241,11 +309,11 @@ C.... for more details
 
       !..  CALL CHEMO to evaluate the source (Q) and sink(L) terms 
       IF(IABS(IHEPNP).EQ.9) 
-     >   CALL CHEMO9(IPR,J,Q,N,NMSAVE,TI,L)
-      IF(IABS(IHEPNP).EQ.11) CALL CHEM11(IPR,J,Q,N,NMSAVE,TI,1,L)
+     >   CALL CHEMO9(NION,J,Q,N,NMSAVE,TI,L)
+      IF(IABS(IHEPNP).EQ.11) CALL CHEM11(NION,J,Q,N,NMSAVE,TI,1,L)
 
-      !... call dave for dn/dt. PM= dn(t+dt)/dt, ANM= dn(t)/dt
-      CALL DAVEM(FLDIM,JEQ,IPR,J,ANM,PM,N,NMSAVE,BM)
+      !..  Call DAVE for dn/dt. PM(AM)=future(present) cpt of dn/dt
+      CALL DAVE(NION,J,ANM,PM,N,NMSAVE)
 
       !.. MINVEL to get the velocities(fluxes) at the upper 1/2 pt
 360   CALL MINVEL(J,VU,FLU,N,JSJ,ID,XMAS,IHEPNP)
@@ -255,7 +323,7 @@ C.... for more details
       BL=(BM(J)+BM(J-1))*0.5
 
       !.. Set up F=prod-loss-dn/dt-div(flux)
-      DO 380 I=1,ION
+      DO 380 I=1,NION
       TINCR(I)=(PM(I)-ANM(I))/DT     !.. dn/dt
       FGR=(FLU(I)/BU-FLL(I)/BL)      !.. div(flux)
 
@@ -322,8 +390,8 @@ C::::::::::::::::::::::::::::: MINVEL ::::::::::::::::::::::::::::::::::
 C... This subroutine returns the ion fluxes for the continuity equation.
       SUBROUTINE MINVEL(J,V,FLUX,N,JSJ,ID,XMAS,IHEPNP)
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
-      USE AVE_PARAMS     !.. midpoint values  
+      !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
+      USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc. 
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       IMPLICIT NONE
       INTEGER J,IHEPNP,JSJ,ID
@@ -391,8 +459,8 @@ C... This routine calculates the diffusion velocities from the minor ion
 C... equation 34 as given by St. Maurice and Schunk Planet and Spac. 
 C... Sci. 1976.  Units are cgs
       SUBROUTINE DCOEFF(J,PP,D,B,HX,GAMMA,JSJ,ID,SUMN,XMAS)
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
-      USE AVE_PARAMS    !.. midpoint values  
+      !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
+      USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc.
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       IMPLICIT NONE
       INTEGER I,J,K,JSJ,MM,ID
@@ -499,32 +567,32 @@ C:::::::::::::::::::::::::::::::: CHEMO9 :::::::::::::::::::::::::::::::
 C.... this program determines the interpolated production and loss
 C.... processes for He+. It CALLs rates to get the rate constants and TERLIN
 C.... to do the interpolation. 
-      SUBROUTINE CHEMO9(ION,JI,SOURCE,N,NMSAVE,TI,SINK)
+      SUBROUTINE CHEMO9(NION,JI,SOURCE,N,NMSAVE,TI,SINK)
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       !..EUVION PEXCIT PEPION OTHPR1 OTHPR2 SUMION SUMEXC PAUION PAUEXC NPLSPRD
       USE PRODUCTION !.. EUV, photoelectron, and auroral production, PHION
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
-      USE AVE_PARAMS    !.. midpoint values  
+      !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
+      USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc. 
       IMPLICIT NONE
-      INTEGER I,J,K,JI,ION
+      INTEGER I,J,K,JI,NION
       DOUBLE PRECISION N(4,FLDIM),TI(3,FLDIM),NMSAVE(2,FLDIM),Q(2,3)
      > ,L(2,3),SOURCE(2),SINK(2),RTS(99)
-      DOUBLE PRECISION HELOSS,QL,QM,QU,DL,DM,DU,LL,LM,LU
+      DOUBLE PRECISION HELOSS,QM,LM
       !-- Q and L are chemical source and sink
       DO 300 K=1,3
         J=K+JI-2
         CALL RATS(J,TI(3,J),TI(1,J),TN(J),RTS)
         HELOSS=(RTS(44)+RTS(45))*N2N(J)+(RTS(75)+RTS(76))*O2N(J)
         !.. small He+ production added to avoid convergence problems
-        Q(1,K)=(OTHPR1(2,J)+1.0E-07)*RBM(J)
-        L(1,K)=HELOSS*N(1,J)*RBM(J)
+        Q(1,K)=(OTHPR1(2,J)+1.0E-07)/BM(J)
+        L(1,K)=HELOSS*N(1,J)/BM(J)
  300  CONTINUE
 
       !.... terd is called to interpolate
-      DO 400 I=1,ION
-        CALL TERLIN(JI,Q(I,1),Q(I,2),Q(I,3),DS(JI-1),DS(JI),QL,QM,QU)
-        CALL TERLIN(JI,L(I,1),L(I,2),L(I,3),DS(JI-1),DS(JI),LL,LM,LU)
+      DO 400 I=1,NION
+        CALL TERLIN(Q(I,1),Q(I,2),Q(I,3),DS(JI-1),DS(JI),QM)
+        CALL TERLIN(L(I,1),L(I,2),L(I,3),DS(JI-1),DS(JI),LM)
         SOURCE(I)=QM
         SINK(I)=LM
  400  CONTINUE
@@ -534,16 +602,17 @@ C:::::::::::::::::::::::::: CHEM11 ::::::::::::::::::::::::::::::::::::::
 C.... this program determines the interpolated production and loss
 C.... processes for N+. It CALLs rates to get the rate constants and TERLIN
 C.... to do the interpolation.
-      SUBROUTINE CHEM11(ION,JI,SOURCE,N,NMSAVE,TI,ISW,SINK)
+      SUBROUTINE CHEM11(NION,JI,SOURCE,N,NMSAVE,TI,ISW,SINK)
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE MINORNEUT !.. N4S N2D NNO N2P N2A O1D O1S
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
-      USE AVE_PARAMS    !.. midpoint values  
+      !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
+      USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc. 
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       !..EUVION PEXCIT PEPION OTHPR1 OTHPR2 SUMION SUMEXC PAUION PAUEXC NPLSPRD
       USE PRODUCTION !.. EUV, photoelectron, and auroral production
       IMPLICIT DOUBLE PRECISION(A-H,L,N-Z)
+      INTEGER J,K,JI,NION
       DIMENSION N(4,FLDIM),TI(3,FLDIM),NMSAVE(2,FLDIM),Q(2,3),L(2,3)
      > ,SOURCE(2),SINK(2),RTS(99)
 
@@ -561,15 +630,15 @@ C.... to do the interpolation.
         LNP6=RTS(65)*O2N(J)
         LNP7=RTS(66)*O2N(J)
 
-        Q(1,K)=(PNP1+PNP2+PNP3)*RBM(J)
+        Q(1,K)=(PNP1+PNP2+PNP3)/BM(J)
         Q(2,K)=0.0
-        L(1,K)=(LNP1+LNP2+LNP3+LNP4+LNP5+LNP6+LNP7)*N(1,J)*RBM(J)
+        L(1,K)=(LNP1+LNP2+LNP3+LNP4+LNP5+LNP6+LNP7)*N(1,J)/BM(J)
         L(2,K)=0.0
  300  CONTINUE
       !... terd is called to interpolate
-      DO 400 I=1,ION
-        CALL TERLIN(JI,Q(I,1),Q(I,2),Q(I,3),DS(JI-1),DS(JI),QL,QM,QU)
-        CALL TERLIN(JI,L(I,1),L(I,2),L(I,3),DS(JI-1),DS(JI),LL,LM,LU)
+      DO 400 I=1,NION
+        CALL TERLIN(Q(I,1),Q(I,2),Q(I,3),DS(JI-1),DS(JI),QM)
+        CALL TERLIN(L(I,1),L(I,2),L(I,3),DS(JI-1),DS(JI),LM)
         SOURCE(I)=QM
         SINK(I)=LM
  400  CONTINUE
@@ -583,9 +652,9 @@ C   and o+ and h+ production and loss rates
 C........................................................................
       SUBROUTINE AVDEN2(JMAX1,TI,IHEPNP)
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
+      !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
-      USE AVE_PARAMS    !.. midpoint values  
+      USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc. 
       USE ION_DEN_VEL   !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       IMPLICIT DOUBLE PRECISION(A-H,L,N-Z)
       REAL OA,HA,N2A,O2A,TNJ,TR,HEA
@@ -656,49 +725,162 @@ C........For N+
  99   FORMAT(1X,'AVDEN11',I4,F7.0,1P,22E10.3)
       RETURN
       END
-C::::::::::::::::::::::::::::: HMATRX ::::::::::::::::::::::::::::::
-C......  HMATRX EVALUATES DELF/DELT USING STEPHANSONS METHOD.
-C......  S(L,M) = DEL(FIJ) / DEL(N)
-C......  WHERE N IS THE DENSITY OF ION IV AT ALTITUDE JV. L AND M
-C......  ARE COMPUTED FROM JF...IV. THE ARRAY RHS CONTAINS VALUES OF
-C...... FIJ SAVED FROM PREVIOUS COMPUTATION
-      SUBROUTINE HMATRX(ISPEC,FLDIM,S,RHS,INEQ,IPR,DT,N,F,JBNN,JBNS,
-     >    MIT,TI,IHEPNP,XMA,NMSAVE)
-      IMPLICIT DOUBLE PRECISION(A-H,N-Z)
-      INTEGER FLDIM     !.. Field line dimension
-      DOUBLE PRECISION RHS(INEQ),S(INEQ,8),N(4,FLDIM),TI(3,FLDIM),
-     >   F(20),NMSAVE(2,FLDIM)
-      IBW=4*IPR-1    !.... band width
+C::::::::::::::::::::::: HMATRX ::::::::::::::::::::::::::::::::::::
+C.... HMATRX evaluates df/dn using Stephansons method for He+ and N+.
+C.... S(L,M) = DEL(FIJ) / DEL(N)
+C.... where N is the density of ion IV at grid point JV. L and M
+C.... are computed from JF...IV. the array RHS contains values of
+C.... FIJ saved from previous computation
+C.... Consult file RSLPSD-Algorithm.doc for detailed explanation
+      SUBROUTINE HMATRX(FLDIM,   !.. field line grid dimension
+     >                      S,   !.. Array to store the Jacobian
+     >                    RHS,   !.. Stored values of function at time t
+     >                   INEQ,   !.. # of equations
+     >                     DT,   !.. time step for dn/dt
+     >                      N,   !.. Ion density array
+     >                     TI,   !.. Ion and electron temperatures
+     >                   JBNN,   !.. Lower boundary index in north
+     >                   JBNS,   !.. Lower boundary index in south
+     >                    MIT,   !.. # of points on field line
+     >                 IHEPNP,   !.. Switch for He+ or N+
+     >                    XMA,   !.. mass of ion
+     >                   NSPC,   !.. # of species
+     >                 NMSAVE)   !.. saved density N at time t (for dn/dt)
+      IMPLICIT NONE
+      include "gptl.inc"
+      INTEGER FLDIM,INEQ,JBNN,JBNS,MIT,IHEPNP,NSPC   !.. see I/O comments above
+      INTEGER KZS,JZS,JF,J1,J2,IV,JV,L,M,KRV,JVC,JFC,IS !.. Loop control variables
+      DOUBLE PRECISION F(20)   !.. Function values at time t + delt
+      DOUBLE PRECISION RHS(INEQ),S(INEQ,8),N(4,FLDIM),TI(3,FLDIM),XMA
+      DOUBLE PRECISION NMSAVE(2,FLDIM),DT,H
+!nm20130111
+      integer ret
 
-      DO 190 JZS=1,INEQ
-      DO 180 KZS=1,IBW
- 180  S(JZS,KZS)=0.0
- 190  CONTINUE
+      ret = gptlstart ('HMATRX_1')
+      DO JZS=1,INEQ        !.. loop over # of equations
+      DO KZS=1,4*NSPC-1    !.. loop over band width
+        S(JZS,KZS)=0.0
+      ENDDO
+      ENDDO
+      ret = gptlstop  ('HMATRX_1')
 
-      DO 80 JF=2,MIT-1
-        J1=MAX0(2,JF-1)
-        J2=MIN0(JF+1,MIT-1)
-        DO 90 JV=J1,J2
-          DO 130 IV=1,IPR
-            L=IPR*(JF-2)
-            IF(JF.LE.3)M=IPR*(JV-2)+IV
-            IF(JF.GT.3)M=IPR*(JV-JF)+IV+2*IPR
-            JVC=JBNN+JV-1
-            JFC=JBNN+JF-1
-            H=1.E-4*N(IV,JVC)
-            N(IV,JVC)=N(IV,JVC)+H
-            CALL MDFIJ(JFC,1,IPR,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMA,NMSAVE)
-            N(IV,JVC)=N(IV,JVC)-H
-            RH=1/H
-            DO 75 IS=1,IPR
-              IF(JF.LE.3) S(L+IS,M)=(F(IS)-RHS(L+IS))*RH
-              IF(JF.GT.3) S(L+IS,M-IS)=(F(IS)-RHS(L+IS))*RH
- 75         CONTINUE
- 130      CONTINUE
-  90    CONTINUE
-  80  CONTINUE
+      !.. Loop to fill up the band matrix with the numerical derivative
+      !.. outer loop is over the grid points
+      ret = gptlstart ('HMATRX_2')
+      DO JF=2,MIT-1
+        J1=MAX0(2,JF-1)     !.. first column index in band
+        J2=MIN0(JF+1,MIT-1) !.. last column index in band
+        !.. loop over species
+      ret = gptlstart ('HMATRX_3')
+        DO IV=1,NSPC
+          !.. loop over densities at grid points j-1, j, and j+1
+      ret = gptlstart ('HMATRX_4')
+          DO JV=J1,J2
+            L=NSPC*(JF-2)    !.. band matrix row index
+            !.. Band matrix column index
+            IF(JF.LE.3) M=NSPC*(JV-2)+IV
+            IF(JF.GT.3) M=NSPC*(JV-JF)+IV+2*NSPC
+            KRV=2*(JV-2)+IV  !.. not used
+
+            JVC=JBNN+JV-1   !.. grid index of the density 
+            JFC=JBNN+JF-1   !.. grid index of the function
+
+            H=1.E-4*N(IV,JVC)     !.. delta for the derivative
+            N(IV,JVC)=N(IV,JVC)+H !.. increment density
+
+            !.. Obtain the function at the new density
+      ret = gptlstart ('HMATRX_5')
+            CALL MDFIJ(JFC,1,NSPC,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMA,NMSAVE)
+      ret = gptlstop  ('HMATRX_5')
+            N(IV,JVC)=N(IV,JVC)-H   !.. restore density
+
+            !.. Store derivatives in the band matrix
+      ret = gptlstart ('HMATRX_6')
+            DO IS=1,NSPC
+              IF(JF.LE.3) S(L+IS,M)=(F(IS)-RHS(L+IS))/H
+              IF(JF.GT.3) S(L+IS,M-IS)=(F(IS)-RHS(L+IS))/H
+            ENDDO
+      ret = gptlstop  ('HMATRX_6')
+          ENDDO
+      ret = gptlstop  ('HMATRX_4')
+        ENDDO
+      ret = gptlstop  ('HMATRX_3')
+      ENDDO
+      ret = gptlstop  ('HMATRX_2')
+
       RETURN
       END
+Cnm20130111: copied from HMATRX to distinguish between he+ v.s. n+
+C::::::::::::::::::::::: NMATRX ::::::::::::::::::::::::::::::::::::
+C.... NMATRX evaluates df/dn using Stephansons method for He+ and N+.
+C.... S(L,M) = DEL(FIJ) / DEL(N)
+C.... where N is the density of ion IV at grid point JV. L and M
+C.... are computed from JF...IV. the array RHS contains values of
+C.... FIJ saved from previous computation
+C.... Consult file RSLPSD-Algorithm.doc for detailed explanation
+      SUBROUTINE NMATRX(FLDIM,   !.. field line grid dimension
+     >                      S,   !.. Array to store the Jacobian
+     >                    RHS,   !.. Stored values of function at time t
+     >                   INEQ,   !.. # of equations
+     >                     DT,   !.. time step for dn/dt
+     >                      N,   !.. Ion density array
+     >                     TI,   !.. Ion and electron temperatures
+     >                   JBNN,   !.. Lower boundary index in north
+     >                   JBNS,   !.. Lower boundary index in south
+     >                    MIT,   !.. # of points on field line
+     >                 IHEPNP,   !.. Switch for He+ or N+
+     >                    XMA,   !.. mass of ion
+     >                   NSPC,   !.. # of species
+     >                 NMSAVE)   !.. saved density N at time t (for dn/dt)
+      IMPLICIT NONE
+      INTEGER FLDIM,INEQ,JBNN,JBNS,MIT,IHEPNP,NSPC   !.. see I/O comments above
+      INTEGER KZS,JZS,JF,J1,J2,IV,JV,L,M,KRV,JVC,JFC,IS !.. Loop control variables
+      DOUBLE PRECISION F(20)   !.. Function values at time t + delt
+      DOUBLE PRECISION RHS(INEQ),S(INEQ,8),N(4,FLDIM),TI(3,FLDIM),XMA
+      DOUBLE PRECISION NMSAVE(2,FLDIM),DT,H
+
+      DO JZS=1,INEQ        !.. loop over # of equations
+      DO KZS=1,4*NSPC-1    !.. loop over band width
+        S(JZS,KZS)=0.0
+      ENDDO
+      ENDDO
+
+      !.. Loop to fill up the band matrix with the numerical derivative
+      !.. outer loop is over the grid points
+      DO JF=2,MIT-1
+        J1=MAX0(2,JF-1)     !.. first column index in band
+        J2=MIN0(JF+1,MIT-1) !.. last column index in band
+        !.. loop over species
+        DO IV=1,NSPC
+          !.. loop over densities at grid points j-1, j, and j+1
+          DO JV=J1,J2
+            L=NSPC*(JF-2)    !.. band matrix row index
+            !.. Band matrix column index
+            IF(JF.LE.3) M=NSPC*(JV-2)+IV
+            IF(JF.GT.3) M=NSPC*(JV-JF)+IV+2*NSPC
+            KRV=2*(JV-2)+IV  !.. not used
+
+            JVC=JBNN+JV-1   !.. grid index of the density 
+            JFC=JBNN+JF-1   !.. grid index of the function
+
+            H=1.E-4*N(IV,JVC)     !.. delta for the derivative
+            N(IV,JVC)=N(IV,JVC)+H !.. increment density
+
+            !.. Obtain the function at the new density
+            CALL MDFIJ(JFC,1,NSPC,DT,N,TI,F,JBNN,JBNS,IHEPNP,XMA,NMSAVE)
+            N(IV,JVC)=N(IV,JVC)-H   !.. restore density
+
+            !.. Store derivatives in the band matrix
+            DO IS=1,NSPC
+              IF(JF.LE.3) S(L+IS,M)=(F(IS)-RHS(L+IS))/H
+              IF(JF.GT.3) S(L+IS,M-IS)=(F(IS)-RHS(L+IS))/H
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDDO
+      RETURN
+      END
+Cnm20130111
 C::::::::::::::::::::::::::: DENAVE :::::::::::::::::::::::::::::::::::::
 C   this program evaluates the interpolated densities at the midpoints
 C   it also evaluates the ion-neutral collision frequencies nux(i,j)
@@ -707,13 +889,12 @@ C........................................................................
       SUBROUTINE DENAVE(JMAX1,TI)
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE THERMOSPHERE  !.. ON HN N2N O2N HE TN UN EHT COLFAC
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
-      USE AVE_PARAMS    !.. midpoint values  
+      !.. TEJ TIJ NUX UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
+      USE AVE_PARAMS    !.. midpoint values - TEJ TIJ NUX UNJ etc. 
       IMPLICIT DOUBLE PRECISION(A-H,L,N-Z)
       DIMENSION TI(3,FLDIM),RTS(99)
       DATA BK/1.3807E-16/
       DO 10 J=JMIN,JMAX-1
-      RBM(J)=1.0/BM(J)
       DS(J)=SL(J+1)-SL(J)
       TIJ(J)=0.5*(TI(1,J)+TI(1,J+1))
       TEJ(J)=0.5*(TI(3,J)+TI(3,J+1))/DS(J)/TIJ(J)
@@ -759,33 +940,5 @@ C........................................................................
       !>   ,HLOSS(J),HPROD(J)
  10   CONTINUE
  99   FORMAT(1X,'AVDEN',I4,F7.0,1P,22E10.3)
-      RETURN
-      END
-C::::::::::::::::::::::::::: DAVEM ::::::::::::::::::::::::::::::::::::::::::::::::
-C.... calculates ante and post values of half interval, and average
-C.... of (ion density)/(magnetic field)
-      SUBROUTINE DAVEM(FLDIM,JEQ,ION,J,ANM,PM,N,NMSAVE,BM)
-      !.. TEJ TIJ NUX RBM UNJ DS GRADTE GRADTI GRAV OLOSS HLOSS HPROD
-      USE AVE_PARAMS    !.. midpoint values  
-      IMPLICIT DOUBLE PRECISION(A-H,N-Z)
-      INTEGER FLDIM     !.. Field line dimension
-      DIMENSION ANM(2),PM(2),N(4,FLDIM),NMSAVE(2,FLDIM),BM(FLDIM)
-
-      DO 100 I=1,ION
-        !...     ante values
-        BB=NMSAVE(I,J-1)*RBM(J-1)
-        C=NMSAVE(I,J)*RBM(J)
-        A=NMSAVE(I,J+1)*RBM(J+1)
-        IF(J.LT.JEQ) CALL TEREXP(J,BB,C,A,DS(J-1),DS(J),QL,QM,QU)
-        IF(J.GE.JEQ) CALL TEREXP(J,A,C,BB,DS(J),DS(J-1),QL,QM,QU)
-        ANM(I)=QM
-        !... post values
-        BB=N(I,J-1)*RBM(J-1)
-        C=N(I,J)*RBM(J)
-        A=N(I,J+1)*RBM(J+1) 
-        IF(J.LT.JEQ) CALL TEREXP(J,BB,C,A,DS(J-1),DS(J),QL,QM,QU)
-        IF(J.GE.JEQ) CALL TEREXP(J,A,C,BB,DS(J),DS(J-1),QL,QM,QU)
-        PM(I)=QM
- 100  CONTINUE
       RETURN
       END

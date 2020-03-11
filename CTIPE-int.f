@@ -7,7 +7,7 @@ C.... Written by P. Richards June 2010.
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
         INTEGER JMIN,JMAX   !.. first and last indices on field line grid
-        INTEGER, PARAMETER :: FLDIM = 401     !.. Field line grid dimension
+        INTEGER, PARAMETER :: FLDIM = 1115     !.. Field line grid dimension
         DOUBLE PRECISION Z(FLDIM),SZA(FLDIM)  !.. altitude, Solar zenith angle
         DOUBLE PRECISION BM(FLDIM)            !.. magnetic field strength
         DOUBLE PRECISION SL(FLDIM)            !.. distance along the field line
@@ -20,7 +20,7 @@ C.... O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       MODULE ION_DEN_VEL
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
-        INTEGER, PARAMETER :: IDIM = 401  !.. Field line grid dimension
+        INTEGER, PARAMETER :: IDIM = 1115  !.. Field line grid dimension
         INTEGER, PARAMETER :: ISPEC = 9   !.. Species dimension
       !.. Ion densities & Velocities
       DOUBLE PRECISION XIONN(ISPEC,IDIM),XIONV(ISPEC,IDIM)
@@ -32,7 +32,7 @@ C.... Written by P. Richards June 2010.
       MODULE SOLVARR
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
-        INTEGER, PARAMETER :: SDIM = 401  !.. Field line grid dimension
+        INTEGER, PARAMETER :: SDIM = 1115  !.. Field line grid dimension
         DOUBLE PRECISION DELTA(10*SDIM),RHS(10*SDIM)
         DOUBLE PRECISION WORK(50*SDIM),S(50*SDIM)
       END MODULE SOLVARR
@@ -43,7 +43,7 @@ C.... Written by P. Richards June 2010.
       MODULE THERMOSPHERE
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
-        INTEGER, PARAMETER :: TDIM = 401  !.. Field line grid dimension
+        INTEGER, PARAMETER :: TDIM = 1115  !.. Field line grid dimension
         DOUBLE PRECISION ON(TDIM),HN(TDIM),N2N(TDIM),O2N(TDIM),HE(TDIM)
         DOUBLE PRECISION TN(TDIM),UN(TDIM),TINF(TDIM)
         DOUBLE PRECISION EHT(3,TDIM)
@@ -55,7 +55,7 @@ C.... Written by P. Richards June 2010.
       MODULE AVE_PARAMS
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
-        INTEGER, PARAMETER :: AVDIM = 401  !.. Field line grid dimension
+        INTEGER, PARAMETER :: AVDIM = 1115  !.. Field line grid dimension
         DOUBLE PRECISION TEJ(AVDIM),TIJ(AVDIM),NUX(2,AVDIM),RBM(AVDIM)
         DOUBLE PRECISION UNJ(AVDIM),DS(AVDIM)
         DOUBLE PRECISION GRADTE(AVDIM),GRADTI(AVDIM),GRAV(AVDIM)
@@ -69,7 +69,7 @@ C.... Written by P. Richards August 2010.
       MODULE PRODUCTION
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
-        INTEGER, PARAMETER :: PDIM = 401  !.. Field line grid dimension
+        INTEGER, PARAMETER :: PDIM = 1115  !.. Field line grid dimension
       !.. EUV and photoelectron production rates 
       REAL EUVION(3,12,PDIM),PEXCIT(3,12,PDIM),PEPION(3,12,PDIM)
       DOUBLE PRECISION OTHPR1(6,PDIM),OTHPR2(6,PDIM)
@@ -87,7 +87,7 @@ C.... Written by P. Richards September 2010.
       MODULE MINORNEUT
 	  IMPLICIT NONE
         !... Check dimensions are the same in all FLIP modules
-        INTEGER, PARAMETER :: NDIM = 401  !.. Field line grid dimension
+        INTEGER, PARAMETER :: NDIM = 1115  !.. Field line grid dimension
         DOUBLE PRECISION N4S(NDIM),N2D(NDIM),NNO(NDIM),N2P(NDIM),
      >    N2A(NDIM),O1D(NDIM),O1S(NDIM),EQN2D(NDIM)
       END MODULE MINORNEUT
@@ -318,20 +318,32 @@ C.... Written by P. Richards June-September 2010.
      >            TE_TIX,  !.. OUT: 2D array, Electron and ion temperatures (K) (see below)
      >     XIONNX,XIONVX,  !.. OUT: 2D array, Storage for ion densities and velocities 
      >             NHEAT,  !.. OUT: array, Neutral heating rate (eV/cm^3/s) 
-     >             EFLAG)  !.. OUT: 2D array, Error Flags
+     >             EFLAG,  !.. OUT: 2D array, Error Flags
+     &                mp, 
+     &                lp,
+     &         hrate_cgs ) !.. OUTPUT: (eV/cm^3/s) !nm20121020
+
       USE THERMOSPHERE       !.. ON HN N2N O2N HE TN UN EHT COLFAC
       USE MINORNEUT          !.. N4S N2D NNO N2P N2A O1D O1S
       USE FIELD_LINE_GRID    !.. FLDIM JMIN JMAX FLDIM Z BM GR SL GL SZA
       USE ION_DEN_VEL        !.. O+ H+ He+ N+ NO+ O2+ N2+ O+(2D) O+(2P)
       !..EUVION PEXCIT PEPION OTHPR1 OTHPR2 SUMION SUMEXC PAUION PAUEXC NPLSPRD
       USE PRODUCTION         !.. EUV, photoelectron, and auroral production
+
+      USE module_input_parameters,ONLY: sw_TEI,sw_OHPLS
+     &, sw_DEBUG_flip,sw_debug,sw_output_fort167
+     &,sw_optw_flip,peFort167,mpFort167,lpFort167,mype
+      USE module_IO,ONLY: LUN_FLIP1,LUN_FLIP2,LUN_FLIP3,LUN_FLIP4
+        USE module_physical_constants,ONLY: zero
       IMPLICIT NONE
+      include "gptl.inc"
       INTEGER CTIPDIM         !.. CTIPe array dimension, must equal to FLDIM
-      INTEGER JTI             !.. Dummy variable to count the number of calls to this routine
+!nm20110923      INTEGER JTI             !.. Dummy variable to count the number of calls to this routine
       INTEGER I,J,JMINX,JMAXX !.. lcv + spatial grid indices
       INTEGER EFLAG(11,11)    !.. error flags, check =0 on return from FLIP
+      INTEGER, INTENT(IN):: mp,lp
       INTEGER INNO            !.. switch to turn on FLIP NO calculation if <0
-      INTEGER DEBUG           !.. switch to turn on debug writes 0=off, 1=on
+!nm20110810      INTEGER DEBUG           !.. switch to turn on debug writes 0=off, 1=on
       !.. IHEPLS,INPLS turn on diffusive solutions if > 0. no solution if 0, 
       !.. chemical equilibrium if < 0
       INTEGER IHEPLS,INPLS  !.. switches He+ and N+ diffusive solutions on
@@ -340,69 +352,79 @@ C.... Written by P. Richards June-September 2010.
       DOUBLE PRECISION M_to_CM,M3_to_CM3  !.. Unit conversion factors
       !.. Dummy variables ending in X for transferring CTIP to FLIP modules, 
       !.. see above for documentation
-      DOUBLE PRECISION N4SX(CTIPDIM),NNOX(CTIPDIM),ZX(CTIPDIM)
-      DOUBLE PRECISION UNX(CTIPDIM),COLFACX,BMX(CTIPDIM)
-      DOUBLE PRECISION GRX(CTIPDIM),SLX(CTIPDIM),GLX(CTIPDIM)
-      DOUBLE PRECISION OX(CTIPDIM),HX(CTIPDIM),N2X(CTIPDIM),O2X(CTIPDIM)
-      DOUBLE PRECISION HEX(CTIPDIM),TNX(CTIPDIM),SZAX(CTIPDIM)
-      DOUBLE PRECISION XIONNX(9,CTIPDIM),XIONVX(9,CTIPDIM)
+      DOUBLE PRECISION N4SX(FLDIM),NNOX(FLDIM),ZX(FLDIM)
+      DOUBLE PRECISION UNX(FLDIM),COLFACX,BMX(FLDIM)
+      DOUBLE PRECISION GRX(FLDIM),SLX(FLDIM),GLX(FLDIM)
+      DOUBLE PRECISION OX(FLDIM),HX(FLDIM),N2X(FLDIM),O2X(FLDIM)
+      DOUBLE PRECISION HEX(FLDIM),TNX(FLDIM),SZAX(FLDIM)
+      DOUBLE PRECISION XIONNX(9,FLDIM),XIONVX(9,FLDIM)
       !.. TE_TI(3,J) = Te, TE_TIX(2,J) = Ti = TE_TIX(2,J)
-      DOUBLE PRECISION TE_TIX(3,CTIPDIM)
+      DOUBLE PRECISION TE_TIX(3,FLDIM)
       !.. EHTX(3,J) = e heating rate, EHTX(1,J) = ion heating rate, EHTX(2,J) unused
-      DOUBLE PRECISION EHTX(3,CTIPDIM)
+      DOUBLE PRECISION EHTX(3,FLDIM)
       !.. TINFX has to be an array for grazing incidence column densities
-      DOUBLE PRECISION TINFX(CTIPDIM)  !.. Exospheric temperature
+      DOUBLE PRECISION TINFX(FLDIM)  !.. Exospheric temperature
       !.. End dummy variable declarations 
       !.. HPEQ is equatorial H+ density = HPEQ * density of a full flux tube.
+      !.. If zero the densities from the previous time step are used.
       !.. If positive, initial densities and temperatures are set. 
       !.. If negative, H+ and He+ densities are reset for flux tube depletion
+      DOUBLE PRECISION HPEQ            !.. HPEQ is equatorial H+ density
       DOUBLE PRECISION DT,DTMIN,FD(9),BCKPRD,FPAS,HEPRAT,PCO
-      DOUBLE PRECISION HPEQ              !.. HPEQ is equatorial H+ density
-      DOUBLE PRECISION COLUM(3,CTIPDIM)  !.. Neutral column densities for PEPRIM
-      DOUBLE PRECISION N(4,CTIPDIM)      !.. FLIP variable for O+ H+ & total ions
-      DOUBLE PRECISION TI(3,CTIPDIM)     !.. FLIP variable for Te and Ti
-      DOUBLE PRECISION NHEAT(CTIPDIM)    !.. Neutral heating rate
-      DOUBLE PRECISION RTS(99)           !.. Reaction rates
-      DOUBLE PRECISION EDEN(CTIPDIM)     !.. electron density
+      DOUBLE PRECISION COLUM(3,FLDIM)  !.. Neutral column densities for PEPRIM
+      DOUBLE PRECISION N(4,FLDIM)      !.. FLIP variable for O+ H+ & total ions
+      DOUBLE PRECISION TI(3,FLDIM)     !.. FLIP variable for Te and Ti
+      DOUBLE PRECISION NHEAT(FLDIM)    !.. Neutral heating rate
+      DOUBLE PRECISION RTS(99)         !.. Reaction rates
+      DOUBLE PRECISION EDEN(FLDIM)     !.. electron density
+      DOUBLE PRECISION O2DISF(FLDIM)   !.. O2 dissociation frequency
+!nm20121020
+      DOUBLE PRECISION hrate_cgs(22,FLDIM)   !.. heating rates
 
-      DATA M_TO_CM,M3_TO_CM3/1.0,1.0/    !.. Unit conversion factors
-      DATA DEBUG/0/  !.. turn on debug writes if DEBUG=1
+      DATA M_TO_CM,M3_TO_CM3/1.0E+2,1.0E-6/    !.. Unit conversion factors
+!dbg20110120:      DATA DEBUG/1/  !.. turn on debug writes if DEBUG=1
+      INTEGER :: midpoint !nm20110312
+      integer :: ret
 
-      JTI=JTI+1
+      ret = gptlstart ('CTIPINT init_params')
+      CALL initialize_module_parameters ( )
+      ret = gptlstop  ('CTIPINT init_params')
+!nm20110923      JTI=JTI+1
 
       !.. Load debug flag into EFLAG for sending to subroutines
-      EFLAG(11,11) = DEBUG 
+      EFLAG(11,11) = sw_DEBUG_flip 
 
       !.. Check that dimensions agree
-      IF(CTIPDIM.NE.FLDIM) THEN
+      IF(CTIPDIM.GT.FLDIM) THEN
         EFLAG(11,1) =-1
         RETURN
       ENDIF
-
+      ret = gptlstart ('CTIPINT upload')
       !.. Upload field line grid parameters to FIELD_LINE_GRID module
       JMIN=JMINX
       JMAX=JMAXX
       DO J=JMIN,JMAX
         Z(J)=ZX(J)
         SZA(J)=SZAX(J)
-        BM(J)=BMX(J)
-        SL(J)=SLX(J)*M3_to_CM3
+        BM(J)=BMX(J)*1.0E+4    !Tesla to gauss 
+        SL(J)=SLX(J)*M_to_CM  !nm110210
         GL(J)=GLX(J)
-        GR(J)=GRX(J)*(M_to_CM)**2
+        GR(J)=GRX(J)*M_to_CM  !nm110210
       ENDDO
 
       !.. Upload densities and velocities to ION_DEN_VEL module
       DO J=JMIN,JMAX
       DO I=1,ISPEC
-        XIONN(I,J)=XIONNX(I,J)
-        XIONV(I,J)=XIONVX(I,J)
+        XIONN(I,J)=XIONNX(I,J)*M3_to_CM3
+        XIONV(I,J)=XIONVX(I,J)*M_to_CM
       ENDDO
       ENDDO
-
+!
       !.. Transfer Te and Ti to FLIP variable TI
       DO J=JMIN,JMAX
       DO I=1,3
         TI(I,J)=TE_TIX(I,J)
+!dbg20110712: debug check which output is essential?
         EHT(I,J)=EHTX(I,J)
       ENDDO
       ENDDO
@@ -418,32 +440,46 @@ C.... Written by P. Richards June-September 2010.
         TN(J)=TNX(J)
         TINF(J)=TINFX(J)
         N4S(J)=N4SX(J)*M3_to_CM3
+!dbg20110712: debug check which output is essential?
         NNO(J)=NNOX(J)*M3_to_CM3
-        UN(J)=UNX(J)*M_TO_CM
+        UN(J)=UNX(J)*M_to_CM
         !.. transfer densities from storage to FLIP solution variable N
-        N(1,J)=XIONN(1,J)*M3_to_CM3
-        N(2,J)=XIONN(2,J)*M3_to_CM3
-        N(3,J)=(XIONN(4,J)+XIONN(5,J)+XIONN(6,J)+XIONN(7,J)+XIONN(8,J))*
-     >     *M3_to_CM3
-        N(4,J)=XIONN(3,J)*M3_to_CM3
+        N(1,J)=XIONN(1,J)
+        N(2,J)=XIONN(2,J)
+        N(3,J)=(XIONN(4,J)+XIONN(5,J)+XIONN(6,J)+XIONN(7,J)+XIONN(8,J))
+        N(4,J)=XIONN(3,J)
+        NHEAT(J)=0.0
+        O2DISF(J)=0.0
+!nm20121020
+        hrate_cgs(1:22,J)=zero
       ENDDO
-
+      ret = gptlstop ('CTIPINT upload')
       !.. Set up initial temperature and density profiles.
-      !.. 0.1 < HPEQ < 1.0
-      IF(HPEQ.GT.0.0) 
+      !.. 0.1 < HPEQ < 1.0.
+      ret = gptlstart ('CTIPINT PROFIN')
+      IF(HPEQ.GT.0.001)
      >  CALL PROFIN(IHEPLS,INPLS,PCO,F107,N,TI,HPEQ,HEPRAT)
-
+      ret = gptlstop  ('CTIPINT PROFIN')
       !.. This routine adjusts the H+ and He+ densities for depleted flux tubes      
       !..  if HPEQ is negative. 0.1 < -HPEQ < 1.0
-      IF(HPEQ.LT.0.0) CALL NEW_HP(JMIN,JMAX,PCO,HPEQ,N,EFLAG)
+      ret = gptlstart ('CTIPINT NEW_HP')
+      IF(HPEQ.LT.-0.001) CALL NEW_HP(JMIN,JMAX,PCO,HPEQ,N,EFLAG)
+      ret = gptlstop  ('CTIPINT NEW_HP')
 
       !.. Update solar EUV flux factors
+      ret = gptlstart ('CTIPINT FACEUV')
       CALL FACEUV(F107,F107A,UVFAC,EUVFLUX)
+      ret = gptlstop  ('CTIPINT FACEUV')
+
       !.. Update Schumann-Runge UV flux factors
+      ret = gptlstart ('CTIPINT FACSR')
       CALL FACSR(UVFAC,F107,F107A)
+      ret = gptlstop  ('CTIPINT FACSR')
 
       !.... evaluate primary EUV production
+      ret = gptlstart ('CTIPINT PRIMPR')
       CALL PRIMPR(F107,F107A,UVFAC,COLUM,EUVFLUX)
+      ret = gptlstop  ('CTIPINT PRIMPR')
 
       !.. electron density for photoelectron routine
       DO J=JMIN,JMAX
@@ -453,29 +489,37 @@ C.... Written by P. Richards June-September 2010.
 
       !.. 2-stream photoelectron routine to get electron heating 
       !.. rate and secondary ion production
-      IF(SZA(1).LE.2.0.OR.SZA(JMAX).LE.2.0) 
-     >   CALL PE2S(F107,F107A,N,TI,FPAS,-1.0E22,EDEN,UVFAC,COLUM)
+      ret = gptlstart ('CTIPINT PE2S')
+      CALL PE2S(F107,F107A,N,TI,FPAS,-1.0E22,EDEN,UVFAC,COLUM,
+     > IHEPLS,INPLS,INNO)
+      ret = gptlstop  ('CTIPINT PE2S')
 
       !-- Sum the EUV, photoelectron, and auroral production rate
+      ret = gptlstart ('CTIPINT SUMPRD')
       CALL SUMPRD(JMIN,JMAX)
+      ret = gptlstop  ('CTIPINT SUMPRD')
 
       !.. Loop to calculate O+(4S) total ionization rate
       !.. PHION=total O+(4S) prod, including EUV, e*, dissoc of O2 and
       !.. minor ions. BCKPRD = small background production to eliminate 
       !,, instability below 200 km
+      ret = gptlstart ('CTIPINT tot ion')
       DO J=JMIN,JMAX 
          PHION(J)=1.0E-22
          N(3,J)=1.0E-22
          DO I=1,9
             FD(I)=0.0
          ENDDO
+
          IF(Z(J).GE.80.AND.Z(J).LE.700) THEN
             !.. CALL cminor to get NO+, O+(2D), O2+, N2+ & O+(2P) densities
             CALL CMINOR(0,J,0,IHEPLS,INPLS,INNO,FD,7,N,TI,Z,EFLAG)
             BCKPRD=2.0E-10*N2N(J)*EXP(-5.0E-14*N2N(J)*TN(J))
             PHION(J)=SUMION(1,7,J)+SUMION(2,4,J)+SUMION(2,5,J)+FD(9)
             PHION(J)=PHION(J)+BCKPRD
+
          ELSE
+
            !.. Make sure minor ions and neutrals are zero above upper boundary
            DO I=5,ISPEC
              XIONN(I,J)=0
@@ -490,24 +534,126 @@ C.... Written by P. Richards June-September 2010.
          !.. Sum minor ions N+, NO+, O2+, N2+ for electron density at low altitudes
          N(3,J)=XIONN(4,J)+XIONN(5,J)+XIONN(6,J)+XIONN(7,J)+XIONN(8,J)
       ENDDO
+      ret = gptlstop ('CTIPINT tot ion')
+
+      !.. Debug write
+      ret = gptlstart ('CTIPINT sw_output')
+      IF (mype==peFort167.AND. sw_output_fort167.AND.mp==mpFort167.AND. &
+     &lp==lpFort167 ) THEN
+!sms$ignore begin
+      print*,'check unit#',LUN_FLIP1,LUN_FLIP3,LUN_FLIP2,LUN_FLIP4,     &
+     &                     mype
+!sms$ignore end
+c      IF(JTI.EQ.1) THEN
+        WRITE(UNIT=LUN_FLIP1,FMT=201)  
+        WRITE(UNIT=LUN_FLIP3,FMT=201)
+ 201    FORMAT('   JMIN   JMAX   CTIPDIM  INNO  IHEPLS  INPLS')
+        WRITE(UNIT=LUN_FLIP1,FMT='(22I7)')  JMIN,JMAX,CTIPDIM,INNO
+     &,IHEPLS,INPLS
+
+        WRITE(UNIT=LUN_FLIP1,FMT=202)  
+        WRITE(UNIT=LUN_FLIP3,FMT=202)
+ 202    FORMAT(/8X,'PCO       DT          DTMIN       F107       F107A'
+     >    ,10X,'FPAS        HPEQ      HEPRAT      COLFACX')
+        WRITE(UNIT=LUN_FLIP1,FMT='(22F12.3)')  PCO,DT,DTMIN,F107,F107A
+     &,FPAS,HPEQ,HEPRAT,COLFACX
+
+        WRITE(UNIT=LUN_FLIP1,FMT=203)
+        WRITE(UNIT=LUN_FLIP3,FMT=203)
+ 203    FORMAT(/5X,'Z      SL            GL      BM        GR '
+     >   ,6X,'SZA        O         H       N2       O2       HE '
+     >   ,6X,'N4S ')
+
+        WRITE(UNIT=LUN_FLIP2,FMT=204)
+        WRITE(UNIT=LUN_FLIP4,FMT=204)
+ 204    FORMAT(5X,'Z         TN       UN       NNO'
+     >    ,6X,'EHT      TI       TE       O+       H+      Min+'
+     >    ,5X,'He+      PHION    PRODO+     N+     EQN2D   NPLSPRD')
+
+        !.. Northern Hemisphere
+        DO J=JMIN,(JMAX/2)+1
+        N(4,J)=XIONN(3,J)
+        WRITE(UNIT=LUN_FLIP1,FMT='(F10.2,1P,E14.7,21E9.2)') Z(J),SL(J)
+     &,GL(J),BM(J),GR(J),SZA(J),ON(J),HN(J),N2N(J),O2N(J),HE(J),N4S(J)
+
+          WRITE(UNIT=LUN_FLIP2,FMT='(3F10.2,1P,22E9.2)') Z(J),TNX(J)
+     &,UN(J),NNO(J)
+     >    ,EHT(3,J),TI(1,J),TI(3,J),N(1,J),N(2,J),N(3,J),XIONN(3,J)
+     >    ,PHION(J),SUMION(1,7,J),XIONN(4,J),EQN2D(J),NPLSPRD(J) 
+!        WRITE(168,'(3F10.2,1P,9E9.2,E10.2,3E9.2)') Z(J),TNX(J),UN(J)
+!     &,NNO(J)
+!     >   ,EHT(3,J),TI(1,J),TI(3,J),N(1,J),N(2,J),N(3,J),N(4,J)
+!     >   ,PHION(J)
+!dbg20110404
+!     &   ,XIONV(1,J)
+!     &,SUMION(1,7,J),SUMION(2,4,J),SUMION(2,5,J)
+        ENDDO
+
+        !.. Southern Hemisphere
+        DO J=JMAX,(JMAX/2)+1,-1
+        N(4,J)=XIONN(3,J)
+        WRITE(UNIT=LUN_FLIP3,FMT='(F10.2,1P,E14.7,21E9.2)') Z(J),SL(J)
+     &,GL(J),BM(J),GR(J),SZA(J),ON(J),HN(J),N2N(J),O2N(J),HE(J),N4S(J)
+
+          WRITE(UNIT=LUN_FLIP4,FMT='(3F10.2,1P,22E9.2)') Z(J),TNX(J)
+     &,UN(J),NNO(J)
+     >    ,EHT(3,J),TI(1,J),TI(3,J),N(1,J),N(2,J),N(3,J),XIONN(3,J)
+     >    ,PHION(J),SUMION(1,7,J),XIONN(4,J),EQN2D(J),NPLSPRD(J) 
+!        WRITE(171,'(3F10.2,1P,9E9.2,E10.2,3E9.2)') Z(J),TNX(J),UN(J)
+!     &,NNO(J)
+!     >   ,EHT(3,J),TI(1,J),TI(3,J),N(1,J),N(2,J),N(3,J),N(4,J)
+!     >   ,PHION(J)
+!!dbg20110404
+!     &   ,XIONV(1,J)
+!     &,SUMION(1,7,J),SUMION(2,4,J),SUMION(2,5,J)
+        ENDDO
+      END IF !( sw_output_fort167.AND...
+      ret = gptlstop ('CTIPINT sw_output')
+c      ENDIF
 
       !..  electron and ion temperature solution
-      CALL CTIPFTE (CTIPDIM,1,JMAX,Z,N,TI,DT,DTMIN,EFLAG)
+      midpoint = (JMAX/2)+1
+      ret = gptlstart ('CTIPINT TLOOPS')
+      IF( sw_TEI>0) ! .AND. Z(midpoint)>100.00 )
+     >  CALL TLOOPS(JMIN,JMAX,FLDIM,Z,N,TI,DT,DTMIN,EFLAG)   !$$$ 
+      ret = gptlstop  ('CTIPINT TLOOPS')
       !.. O+, H+ solution
-      CALL CTIPFDEN(CTIPDIM,1,JMAX,Z,N,TI,DT,DTMIN,SL,EFLAG)
-
+      ret = gptlstart ('CTIPINT DLOOPS')
+      IF( sw_OHPLS>0) ! .AND. Z(midpoint)>120.00 )
+     >  CALL DLOOPS(JMIN,JMAX,FLDIM,Z,N,TI,DT,DTMIN,EFLAG)   !$$$  
+      ret = gptlstop  ('CTIPINT DLOOPS')
+!----------------------
+      if ( sw_optw_flip ) then
+      !.. Recalculate the minor ion densities with the new O+ density
+      !.. Added by PGR 2012-11-29
+      DO J=JMIN,JMAX
+       IF(Z(J).GE.80.AND.Z(J).LE.700) THEN
+          CALL CMINOR(0,J,0,IHEPLS,INPLS,INNO,FD,7,N,TI,Z,EFLAG)
+       ENDIF
+      ENDDO
+      endif !( sw_optw_flip ) then
+!----------------------
       !.. He+ solution
-      IF(IHEPLS.GT.0) CALL XION(TI,DT,DTMIN,9,EFLAG)
+      ret = gptlstart ('CTIPINT XION')
+      IF(EFLAG(2,1).EQ.0.AND.IHEPLS.GT.0) ! .AND. Z(midpoint)>200.00 )
+     & CALL XION(TI,DT,DTMIN,9,EFLAG)
+      ret = gptlstop  ('CTIPINT XION')
+
       !.. N+ solution
-      IF(INPLS.GT.0) CALL XION(TI,DT,DTMIN,11,EFLAG)
+!dbg20120301:
+      IF ( sw_DEBUG_flip==1 )  print *,'!dbg! apex ht=',z(midpoint)
+     &, midpoint,lp,mp
+      ret = gptlstart ('CTIPINT XION')
+      IF(EFLAG(2,1).EQ.0.AND.INPLS.GT.0) CALL XION(TI,DT,DTMIN,11,EFLAG)
+      ret = gptlstop  ('CTIPINT XION')
 
-
+      ret = gptlstart ('CTIPINT transfer')
         !.. transfer densities from FLIP to CTIP variable
       DO J=JMIN,JMAX
         NNOX(J)=NNO(J)/M3_to_CM3
         DO I=1,ISPEC
           XIONNX(I,J)=XIONN(I,J)/M3_to_CM3
-          XIONVX(I,J)=XIONV(I,J)/M3_to_CM3
+          XIONVX(I,J)=XIONV(I,J)/M_to_CM
         ENDDO
       ENDDO
 
@@ -518,38 +664,57 @@ C.... Written by P. Richards June-September 2010.
         EHTX(I,J)=EHT(I,J)
       ENDDO
       ENDDO
+      ret = gptlstop ('CTIPINT transfer')
 
-      I=0   !.. I is used to turn on NHEAT writes
-      IF(DEBUG.EQ.1.AND.JTI.EQ.115) I=1 
+!.. I=1 is used to turn on NHEAT writes
+!nm033111:      IF(DEBUG.EQ.1.AND.JTI.EQ.115) I=1 
+      IF ( sw_DEBUG_flip==1 ) THEN 
+        I=1 !ON write
+      ELSE
+        I=0 !OFF
+      END IF
 
         !.. Get neutral gas heating rate NHEAT
+        ret = gptlstart ('CTIPINT get NHEAT')
         DO J=JMIN,JMAX
           IF(Z(J).GE.80.AND.Z(J).LE.700) THEN
             !.. electron density for photoelectron routine
             EDEN(J)=XIONN(1,J)+XIONN(2,J)+XIONN(3,J)+XIONN(4,J)+
      >      XIONN(5,J)+XIONN(6,J)
-            CALL RATS(J,TI(3,J),TI(1,J),TN(J),RTS)  !.. Reaction rates
+            CALL RATS(J,TI(3,J),TI(2,J),TN(J),RTS)  !.. Reaction rates
             !.. Neutral heating rate
-            CALL NEUT_HEATING(I,J,Z(J),RTS,TI(3,J),TI(2,J),TN(J),
+!dbg      print *,'before call NEUT_HEATING: I=',I
+            CALL NEUT_HEATING(I,JMIN,JMAX
+     &       ,J,Z(J),RTS,TI(3,J),TI(2,J),TN(J),
      >        ON(J),O2N(J),N2N(J),HE(J),N4S(J),EDEN(J),N(1,J),XIONN(6,J)
      >       ,XIONN(5,J),N(2,J),XIONN(7,J),XIONN(4,J),NNO(J),N2D(J)
      >       ,N2P(J),N2A(J),XIONN(8,J),XIONN(9,J),O1D(J),O1S(J)
-     >       ,NHEAT(J))
+     >       ,EHT(3,J)   !.. Input: Electron heating rate
+     &       ,NHEAT(J)   !.. OUTPUT: Total neutral heating rate
+     &       ,O2DISF(J)  !.. OUTPUT: O2 dissociation frequency !PGR added index
+     &,hrate_cgs(1:22,J) ) !.. OUTPUT: !nm20121020
+!     &       ,hrate_cgs(2,J)  !..
+!     &       ,hrate_cgs(3,J)  !..
+!     &       ,hrate_cgs(4,J)  !..
+!     &       ,hrate_cgs(5,J)  !..
+!     &       ,hrate_cgs(6,J)  !..
+!     &       ,hrate_cgs(7,J) )!..
           ENDIF
-      ENDDO
+        ENDDO
+        ret = gptlstop ('CTIPINT get NHEAT')
 c      ENDIF
 
       !---------------------- DEBUG WRITE -----------------------------------
       !.. Debug write if DEBUG=1
-      IF(DEBUG.EQ.1.AND.JTI.EQ.115) WRITE(171,88) 
+      IF ( sw_DEBUG_flip==1 ) WRITE(172,88)    !nm20110923
  88   FORMAT('  J     ALT    TE     TI       O+        H+       He+'
      >  ,8X,'N+        NO+       O2+       NE      UVOX+    PEOX+'
      >  ,6X,'UVN2+      PEN2+     EHT       VO+       VH+      VHe+'
      >  ,7X,'VN+        NO       N2D       N4S      O1D       O1S'
      >  ,6X,'NHEAT')
       DO J=JMIN,JMAX
-        IF(DEBUG.EQ.1.AND.JTI.EQ.115) 
-     >   WRITE(171,'(I5,I7,2F7.1,1P,29E10.2)') 
+        IF(sw_DEBUG_flip.EQ.1)    !nm20110923
+     >   WRITE(172,'(I5,I7,2F7.1,1P,29E10.2)') 
      >   J,NINT(Z(J)),TI(3,J),TI(2,J),XIONN(1,J),XIONN(2,J),XIONN(3,J),
      >   XIONN(4,J),XIONN(5,J),XIONN(6,J),EDEN(J),EUVION(1,1,J),
      >   PEPION(1,1,J),EUVION(1,1,J),PEPION(3,1,J),EHT(3,J),XIONV(1,J),
@@ -557,48 +722,121 @@ c      ENDIF
      >   O1S(J),NHEAT(J)
       ENDDO
 
+!nm20110715: for diagnostics only
+!.. 2-stream photoelectron routine called to print fluxes
+      ret = gptlstart ('CTIPINT PE2S')
+      IF(sw_DEBUG_flip.EQ.1)  !nm20110923
+     &  CALL PE2S(F107,F107A,N,TI,FPAS,300.0,EDEN,UVFAC,COLUM
+     &    ,IHEPLS,INPLS,INNO)
+      ret = gptlstop  ('CTIPINT PE2S')
+
       RETURN
       END
 C:::::::::::::::::: WRITE_EFLAG ::::::::::::::::::::::::
 C... This routine prints the information about error flags
 C... Written by P. Richards September 2010
       SUBROUTINE WRITE_EFLAG(PRUNIT,   !.. Unit number to print results
-     >                        EFLAG)   !.. Error flag array
+     >                        EFLAG,   !.. Error flag array
+     >                           mp, 
+     >                           lp,utime,ltime)
+      USE module_input_parameters,ONLY:sw_output_fort167,sw_ERSTOP_flip &
+     &                                ,mype
+      USE module_precision
       IMPLICIT NONE
       INTEGER PRUNIT,EFLAG(11,11)         !.. error flags
-      IF(EFLAG(1,1).NE.0) WRITE(PRUNIT,11)
+      INTEGER (KIND=int_prec),  INTENT(IN) :: mp,lp
+      INTEGER (KIND=int_prec),  INTENT(IN) :: utime !universal time [sec]
+      REAL    (KIND=real_prec), INTENT(IN) :: ltime !local time [hour]
+!
+      IF(EFLAG(1,1).NE.0) THEN
+        WRITE(PRUNIT,11)mp,lp,mype
+!(11)
+!t        IF ( sw_ERSTOP_flip==1 )  STOP
+      END IF
  11   FORMAT(/'  Convergence failure in Temperature solution (TLOOPS).'
-     >  ,2X,'Time step less than minimum.')
-      IF(EFLAG(1,2).NE.0) WRITE(PRUNIT,12)
+     >  ,2X,'Time step less than minimum.mp=',i4,'lp=',i4,i7)
+      IF(EFLAG(1,2).NE.0) then
+!dbg110210:
+        WRITE(PRUNIT,*)'EFLAG(1,2)',EFLAG(1,2),mype
+        WRITE(PRUNIT,12)mp,lp
+        IF ( sw_ERSTOP_flip==1 ) THEN
+!sms$ignore begin
+          print*,"(12)ERSTOP FLIP",mp,lp,mype
+!sms$ignore end
+          STOP
+        END IF !( sw_ERSTOP_flip==1 ) THEN
+      end IF !(EFLAG(1,2).NE.0) then
  12   FORMAT(/'  Convergence failure in Temperature solution (TLOOPS).'
-     >  ,2X,'Incorrect input to the band solver BDSLV.')
+     >  ,2X,'Incorrect input to the band solver BDSLV.mp=',i3,'lp=',i4)     
 
-      IF(EFLAG(2,1).NE.0) WRITE(PRUNIT,21)
- 21   FORMAT(/'  Convergence failure in O+ - H+ solution (DLOOPS).'
-     >  ,2X,'Time step less than minimum.')
-      IF(EFLAG(2,2).NE.0) WRITE(PRUNIT,22)
+      IF(EFLAG(2,1).NE.0) THEN
+         WRITE(PRUNIT,21)lp,mp,ltime,UTIME,mype
+!(3)
+!t         IF ( sw_ERSTOP_flip==1 )  STOP
+!!!20120125UNDERCONSTRUCTION!!!
+!dbg20120125         sw_output_fort167=.TRUE.
+      END IF
+ 21   FORMAT(/'  Convergence failure in O+/H+ (DLOOPS).'
+     &,'TimeStep less than minimum:lp=',i3,'mp=',i2,f7.2,2i7)
+      IF(EFLAG(2,2).NE.0) THEN
+         WRITE(PRUNIT,22)mp,lp,mype
+         IF ( sw_ERSTOP_flip==1 )  THEN
+!sms$ignore begin
+           print*,"(22)ERSTOP FLIP",mp,lp,mype
+!sms$ignore end
+           STOP
+         END IF !( sw_ERSTOP_flip==1 )  THEN
+!!!20120125UNDERCONSTRUCTION!!!
+!dbg20120125         sw_output_fort167=.TRUE.
+      END IF !(EFLAG(2,2).NE.0) THEN
  22   FORMAT(/'  Convergence failure in O+ - H+ solution (DLOOPS).'
-     >  ,2X,'Incorrect input to the band solver BDSLV.')
+     >  ,2X,'Incorrect input to the band solver BDSLV.mp',i3,'lp',i4,i6)
 
-      IF(EFLAG(3,1).NE.0) WRITE(PRUNIT,31)
+      IF(EFLAG(3,1).NE.0) THEN
+         WRITE(PRUNIT,31)mp,lp,mype
+!(5)
+!t         IF ( sw_ERSTOP_flip==1 )  STOP
+      END IF
  31   FORMAT(/'  Convergence failure in He+ solution (XION).'
-     >  ,2X,'Time step less than minimum.')
-      IF(EFLAG(3,2).NE.0) WRITE(PRUNIT,32)
+     >  ,2X,'Time step less than minimum.',3i7)
+      IF(EFLAG(3,2).NE.0) THEN
+         WRITE(PRUNIT,32)mp,lp,mype
+         IF ( sw_ERSTOP_flip==1 ) THEN
+!sms$ignore begin
+           print*,"(32)ERSTOP FLIP",mp,lp,mype
+!sms$ignore end
+           STOP
+         END IF !( sw_ERSTOP_flip==1 ) THEN
+
+      END IF !(EFLAG(3,2).NE.0) THEN
  32   FORMAT(/'  Convergence failure in He+ solution (XION).'
-     >  ,2X,'Incorrect input to the band solver BDSLV.')
+     >  ,2X,'Incorrect input to the band solver BDSLV.mp',i3,'lp',i4,i7)
 
-      IF(EFLAG(4,1).NE.0) WRITE(PRUNIT,41)
- 41   FORMAT(/'  Convergence failure in He+ solution (XION).'
-     >  ,2X,'Time step less than minimum.')
-      IF(EFLAG(4,2).NE.0) WRITE(PRUNIT,42)
- 42   FORMAT(/'  Convergence failure in He+ solution (XION).'
-     >  ,2X,'Incorrect input to the band solver BDSLV.')
+      IF(EFLAG(4,1).NE.0) THEN
+         WRITE(PRUNIT,41)mp,lp,mype
+!t         IF ( sw_ERSTOP_flip==1 )  STOP
+      END IF !      IF(EFLAG(4,1).NE.0) THEN
+ 41   FORMAT(/'  Convergence failure in N+ solution (XION).'
+     >  ,2X,'Time step less than minimum.mp',i3,'lp',i4,i7)
+      IF(EFLAG(4,2).NE.0) THEN
+         WRITE(PRUNIT,42)mp,lp,mype
+!(8)
+         IF ( sw_ERSTOP_flip==1 )  THEN
+!SMS$ignore begin
+           print*,"(42)ERSTOP FLIP",mp,lp,mype
+!SMS$ignore end
+           STOP
+         END IF !( sw_ERSTOP_flip==1 )  THEN
 
-      IF(EFLAG(5,1).NE.0) WRITE(PRUNIT,51)
- 51   FORMAT(/'  Convergence failure in CMINOR.')
+      END IF !(EFLAG(4,2).NE.0) THEN
+ 42   FORMAT(/'  Convergence failure in N+ solution (XION).'
+     >  ,2X,'Incorrect input to the band solver BDSLV.mp',i3,'lp',i4,i7)
 
-      IF(EFLAG(11,1).NE.0) WRITE(PRUNIT,111)
- 111  FORMAT(/3X'** CTIP dimension not equal to FLIP dimensions'
-     >  /3X,'** Check dimensions in all FLIP modules')
+      IF(EFLAG(5,1).NE.0) WRITE(PRUNIT,51)mype
+ 51   FORMAT(/'  Convergence failure in CMINOR.',i10)
+
+      IF(EFLAG(11,1).NE.0) WRITE(PRUNIT,111)mype
+ 111  FORMAT(/3X,'** CTIP dimension not equal to FLIP dimensions'
+     >  /3X,'** Check dimensions in all FLIP modules',i7)
       RETURN
       END 
